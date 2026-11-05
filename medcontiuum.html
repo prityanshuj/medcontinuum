@@ -1,0 +1,2465 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CareContinuum — Patient Healthcare Navigation & OPD Queue Radar</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Vanilla Tilt (3D Card Physics) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/vanilla-tilt/1.8.0/vanilla-tilt.min.js"></script>
+  <!-- Leaflet CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            navy: {
+              950: '#050a12',
+              900: '#070d18',
+              850: '#0b1526',
+              800: '#0f1c33',
+              700: '#172b4d',
+              600: '#233f6e'
+            },
+            clinical: {
+              emerald: '#10b981',
+              forest: '#059669',
+              mint: '#34d399',
+              light: '#d1fae5'
+            },
+            accent: {
+              orange: '#f97316',
+              warm: '#ea580c',
+              soft: '#fff7ed'
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700;800&display=swap');
+
+    :root {
+      --bg-navy: #070d18;
+      --bg-mesh: radial-gradient(at 0% 0%, rgba(16, 185, 129, 0.13) 0px, transparent 50%),
+                 radial-gradient(at 100% 100%, rgba(249, 115, 22, 0.08) 0px, transparent 40%),
+                 radial-gradient(at 50% 50%, #0d1a30 0px, #070d18 100%);
+    }
+
+    body {
+      background: var(--bg-mesh);
+      background-color: var(--bg-navy);
+      background-attachment: fixed;
+      color: #f1f5f9;
+      font-family: 'Inter', sans-serif;
+      margin: 0;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Minimalist Navy + Emerald Glassmorphism */
+    .clinical-glass {
+      background: rgba(11, 21, 38, 0.85);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      box-shadow: 0 16px 36px -10px rgba(0, 0, 0, 0.6);
+      border-radius: 20px;
+    }
+
+    .clinical-glass-card {
+      background: linear-gradient(135deg, rgba(16, 31, 56, 0.82), rgba(11, 20, 38, 0.92));
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 20px;
+      transition: border-color 0.3s ease, box-shadow 0.35s ease;
+      transform-style: preserve-3d;
+      will-change: transform;
+    }
+
+    /* Multi-layered Emerald Glow (Preserves 3D tilt) */
+    .clinical-glass-card:hover {
+      border-color: rgba(16, 185, 129, 0.75) !important;
+      box-shadow: 0 0 20px rgba(16, 185, 129, 0.25),
+                  0 0 40px rgba(16, 185, 129, 0.12),
+                  0 16px 40px -10px rgba(0, 0, 0, 0.8) !important;
+    }
+
+    /* Leaflet Container */
+    .leaflet-container {
+      background: #060b14 !important;
+      font-family: inherit;
+    }
+    .leaflet-popup-content-wrapper {
+      background: rgba(11, 21, 38, 0.96) !important;
+      color: #fff !important;
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      border-radius: 18px;
+      box-shadow: 0 16px 38px rgba(0, 0, 0, 0.85);
+    }
+    .leaflet-popup-tip {
+      background: rgba(11, 21, 38, 0.96) !important;
+    }
+
+    /* Specialty Map Pin */
+    .specialty-map-pin {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 44px;
+      height: 44px;
+    }
+    .specialty-map-pin .pin-radar {
+      position: absolute;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      opacity: 0.55;
+      animation: pinPing 2.2s cubic-bezier(0, 0, 0.2, 1) infinite;
+    }
+    .specialty-map-pin .pin-badge {
+      position: relative;
+      width: 38px;
+      height: 38px;
+      border-radius: 14px;
+      background: rgba(7, 13, 24, 0.96);
+      border: 2px solid currentColor;
+      box-shadow: 0 0 16px currentColor;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #ffffff;
+      transition: transform 0.2s ease;
+      cursor: pointer;
+    }
+    .specialty-map-pin:hover .pin-badge {
+      transform: scale(1.18);
+    }
+    @keyframes pinPing {
+      75%, 100% {
+        transform: scale(2.2);
+        opacity: 0;
+      }
+    }
+
+    /* Equalizer Audio Waves */
+    .eq-bar {
+      display: inline-block;
+      width: 3px;
+      background-color: #10b981;
+      border-radius: 2px;
+      animation: eqBounce 1.2s ease-in-out infinite alternate;
+    }
+    .eq-bar:nth-child(2) { animation-delay: 0.2s; height: 14px; }
+    .eq-bar:nth-child(3) { animation-delay: 0.4s; height: 8px; }
+    .eq-bar:nth-child(4) { animation-delay: 0.1s; height: 12px; }
+    @keyframes eqBounce {
+      0% { height: 4px; }
+      100% { height: 16px; }
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 999px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.3); }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col select-none">
+
+  <!-- ================= WELCOME / ONBOARDING MODAL ================= -->
+  <div id="welcome-onboarding-modal" class="fixed inset-0 z-[999999] bg-navy-950/80 backdrop-blur-md flex items-center justify-center p-4 hidden">
+    <div class="clinical-glass max-w-md w-full p-7 border-white/15 shadow-2xl relative" data-tilt data-tilt-max="3">
+      
+      <!-- Top Step Header -->
+      <div class="flex items-center justify-between text-xs font-mono mb-6">
+        <span id="onboard-step-badge" class="px-2.5 py-1 rounded-md bg-white/10 text-clinical-emerald font-bold uppercase tracking-wider">
+          STEP 1 OF 3
+        </span>
+        <button onclick="skipOnboarding()" class="text-slate-400 hover:text-white transition font-bold flex items-center gap-1">
+          Skip ✕
+        </button>
+      </div>
+
+      <!-- Icon & Graphic -->
+      <div class="flex justify-center mb-5">
+        <div id="onboard-icon-box" class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-clinical-emerald to-teal-400 p-0.5 shadow-lg flex items-center justify-center">
+          <div class="w-full h-full bg-navy-900 rounded-[14px] flex items-center justify-center text-clinical-emerald">
+            <i id="onboard-main-icon" data-lucide="shield-plus" class="w-8 h-8"></i>
+          </div>
+        </div>
+      </div>
+
+      <!-- Content Area -->
+      <div id="onboard-content" class="text-center space-y-3 mb-6">
+        <h2 id="onboard-title" class="text-lg font-black text-white tracking-tight">Welcome to MedContinuum</h2>
+        <p id="onboard-subtitle" class="text-[11px] font-mono text-clinical-emerald font-bold uppercase tracking-widest">Autonomous Patient Care & OPD Radar</p>
+        <p id="onboard-desc" class="text-xs text-slate-300 leading-relaxed">
+          Navigate hospital OPD queues, check real-time doctor availability across Jammu, and securely store your diagnostic lab records.
+        </p>
+
+        <!-- Dynamic Step 1 Name Input Field -->
+        <div id="onboard-name-container" class="pt-2 text-left">
+          <label class="block text-[11px] font-mono text-slate-300 mb-1 font-semibold">Enter Patient Full Name:</label>
+          <input type="text" id="onboard-patient-input" placeholder="e.g. Prityanshu" value="Prityanshu" class="w-full bg-navy-950/70 border border-white/15 focus:border-clinical-emerald rounded-xl px-3.5 py-2.5 text-xs text-white outline-none font-bold shadow-sm">
+        </div>
+      </div>
+
+      <!-- Pager Dots -->
+      <div class="flex items-center justify-center gap-1.5 mb-6">
+        <span id="dot-1" class="w-7 h-1.5 rounded-full bg-clinical-emerald transition-all"></span>
+        <span id="dot-2" class="w-2 h-1.5 rounded-full bg-white/20 transition-all"></span>
+        <span id="dot-3" class="w-2 h-1.5 rounded-full bg-white/20 transition-all"></span>
+      </div>
+
+      <!-- Action Button -->
+      <button onclick="nextOnboardingStep()" id="onboard-next-btn" class="w-full py-3 rounded-xl bg-gradient-to-r from-clinical-emerald to-teal-500 hover:opacity-95 text-navy-950 font-extrabold text-xs shadow-lg transition flex items-center justify-center gap-2">
+        <span>Continue →</span>
+      </button>
+
+    </div>
+  </div>
+
+  <!-- ================= TOP NAVIGATION BAR ================= -->
+  <header class="sticky top-0 z-50 clinical-glass border-b border-white/10 px-4 md:px-8 py-3 mx-3 md:mx-6 mt-3 shadow-xl">
+    <div class="max-w-7xl mx-auto flex flex-col lg:flex-row items-center justify-between gap-4">
+      
+      <!-- Brand Logo -->
+      <div class="flex items-center justify-between w-full lg:w-auto">
+        <div class="flex items-center gap-3">
+          <div class="w-11 h-11 rounded-2xl bg-gradient-to-br from-clinical-emerald/25 to-navy-700 border border-clinical-emerald/50 flex items-center justify-center text-clinical-emerald shadow-[0_0_20px_rgba(16,185,129,0.25)] shrink-0">
+            <i data-lucide="activity" class="w-6 h-6 text-clinical-emerald"></i>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h1 class="text-base font-extrabold text-white tracking-tight">MedContinuum</h1>
+              <span class="text-[10px] font-mono px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-bold uppercase tracking-wider">Patient Hub</span>
+            </div>
+            <p class="text-[11px] text-slate-400 font-medium">Hospital OPD Directory & Healthcare Continuity</p>
+          </div>
+        </div>
+
+        <!-- Mobile Quick Trigger -->
+        <div class="flex items-center gap-2 lg:hidden">
+          <button onclick="simulateHospitalCallDemo()" class="px-2.5 py-1.5 rounded-xl bg-accent-orange/15 border border-accent-orange/40 text-orange-300 text-[11px] font-bold flex items-center gap-1.5">
+            <i data-lucide="volume-2" class="w-3.5 h-3.5"></i> Test PA
+          </button>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <nav class="flex items-center bg-navy-950/90 p-1.5 rounded-2xl border border-white/10 shadow-inner w-full lg:w-auto overflow-x-auto">
+        <button onclick="switchMainTab('radar')" id="tab-btn-radar" class="flex-1 lg:flex-initial flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs font-extrabold transition-all duration-200 whitespace-nowrap bg-gradient-to-r from-emerald-500 to-teal-600 text-slate-950 shadow-[0_0_20px_rgba(16,185,129,0.4)]">
+          <i data-lucide="compass" class="w-4 h-4 text-slate-950"></i>
+          <span>OPD Radar & Doctors</span>
+        </button>
+
+        <button onclick="switchMainTab('vault')" id="tab-btn-vault" class="flex-1 lg:flex-initial flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs font-semibold text-slate-300 hover:text-white transition-all duration-200 whitespace-nowrap">
+          <i data-lucide="shield-check" class="w-4 h-4 text-clinical-emerald"></i>
+          <span>Diagnostic Health Vault</span>
+        </button>
+
+        <button onclick="switchMainTab('tokens')" id="tab-btn-tokens" class="flex-1 lg:flex-initial flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs font-semibold text-slate-300 hover:text-white transition-all duration-200 whitespace-nowrap relative">
+          <i data-lucide="ticket" class="w-4 h-4 text-accent-orange"></i>
+          <span>My Live Tokens</span>
+          <span id="active-token-badge" class="hidden w-2.5 h-2.5 rounded-full bg-accent-orange shadow-[0_0_8px_#f97316] animate-ping"></span>
+        </button>
+      </nav>
+
+      <!-- PA Controls & Profile -->
+      <div class="hidden lg:flex items-center gap-3">
+        <button onclick="toggleAudioChime()" id="audio-toggle-btn" class="flex items-center gap-2.5 px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-slate-200 transition" title="Toggle Airport/Hospital Voice PA Announcements">
+          <div class="flex items-end gap-0.5 h-4 w-4" id="eq-container">
+            <span class="eq-bar" style="height:6px"></span>
+            <span class="eq-bar"></span>
+            <span class="eq-bar"></span>
+            <span class="eq-bar"></span>
+          </div>
+          <span id="audio-label" class="text-[11px] font-mono font-bold text-clinical-emerald">PA: ACTIVE</span>
+        </button>
+
+        <!-- Tasteful Orange Accent Button -->
+        <button onclick="simulateHospitalCallDemo()" class="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-accent-orange/15 hover:bg-accent-orange/25 border border-accent-orange/50 text-orange-300 text-xs font-extrabold shadow-[0_0_15px_rgba(249,115,22,0.2)] transition transform hover:scale-105 active:scale-95" title="Hear real airport/hospital audio chime and room callout">
+          <i data-lucide="volume-2" class="w-4 h-4 text-accent-orange animate-pulse"></i>
+          <span>Simulate PA Call Now</span>
+        </button>
+
+        <!-- Patient Name Pill -->
+        <button onclick="openNameEditPrompt()" class="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 transition group" title="Click to Change Patient Name">
+          <div class="w-6 h-6 rounded-lg bg-clinical-emerald/20 border border-clinical-emerald/40 flex items-center justify-center text-clinical-emerald group-hover:scale-105 transition">
+            <i data-lucide="user" class="w-3.5 h-3.5"></i>
+          </div>
+          <span id="top-patient-name" class="text-xs font-semibold text-slate-200 group-hover:text-clinical-emerald transition">Patient: Prityanshu</span>
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- ================= NOTIFICATION TOAST ================= -->
+  <div id="toast" class="fixed top-24 right-6 z-[99999] clinical-glass px-5 py-3.5 flex items-center gap-3.5 border border-white/15 pointer-events-none transform translate-y-[-120%] opacity-0 transition-all duration-300 shadow-2xl">
+    <div id="toast-icon" class="w-8 h-8 rounded-xl bg-clinical-emerald/20 flex items-center justify-center text-clinical-emerald shrink-0">
+      <i data-lucide="bell" class="w-4 h-4"></i>
+    </div>
+    <div>
+      <p id="toast-title" class="text-xs font-extrabold text-white tracking-wide">Live Dispatch</p>
+      <p id="toast-desc" class="text-[11px] text-slate-300 mt-0.5">Notification description</p>
+    </div>
+  </div>
+
+  <!-- ================= CALL CHAMBER MODAL ================= -->
+  <div id="call-chamber-modal" class="fixed inset-0 z-[99998] bg-navy-950/80 backdrop-blur-md flex items-center justify-center p-4 hidden">
+    <div class="clinical-glass max-w-md w-full p-6 border-white/15 space-y-5 shadow-2xl relative" data-tilt data-tilt-max="3">
+      <button onclick="closeCallModal()" class="absolute top-4 right-4 w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center text-slate-400 hover:text-white transition">
+        <i data-lucide="x" class="w-4 h-4"></i>
+      </button>
+
+      <div class="flex items-center gap-3.5">
+        <div id="modal-doc-icon-wrap" class="w-12 h-12 rounded-2xl bg-clinical-emerald/20 border border-clinical-emerald/40 flex items-center justify-center text-clinical-emerald shrink-0 shadow-lg">
+          <i data-lucide="phone-call" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <span id="modal-doc-sector" class="text-[10px] font-mono px-2 py-0.5 rounded uppercase font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">Govt OPD</span>
+          <h3 id="modal-doc-name" class="text-base font-bold text-white mt-1">Doctor Name</h3>
+          <p id="modal-doc-dept" class="text-xs text-clinical-emerald font-semibold">Specialty • Hospital</p>
+        </div>
+      </div>
+
+      <div class="bg-navy-950/70 rounded-xl p-3.5 border border-white/10 space-y-2 text-xs">
+        <div class="flex items-start gap-2 text-slate-300">
+          <i data-lucide="map-pin" class="w-4 h-4 text-clinical-emerald shrink-0 mt-0.5"></i>
+          <span id="modal-doc-address">Chamber location address details</span>
+        </div>
+        <div class="flex items-center justify-between pt-2 border-t border-white/10 text-[11px] font-mono">
+          <span class="text-slate-400" id="modal-doc-room">Room details</span>
+          <span class="text-emerald-400 font-bold" id="modal-doc-fee">Free (Govt OPD)</span>
+        </div>
+      </div>
+
+      <div class="space-y-2.5">
+        <p class="text-[11px] font-mono text-slate-400 uppercase tracking-wider font-semibold">Direct Verified Reception:</p>
+        
+        <a id="modal-call-direct" href="tel:" class="flex items-center justify-between p-3 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-300 transition group">
+          <div class="flex items-center gap-2.5">
+            <i data-lucide="phone" class="w-4 h-4 text-emerald-400 group-hover:scale-110 transition"></i>
+            <div>
+              <p class="text-xs font-bold text-white">Direct OPD Helpline</p>
+              <p id="modal-phone-display" class="text-[11px] font-mono text-emerald-400">+91 191 258 4234</p>
+            </div>
+          </div>
+          <span class="text-xs font-bold font-mono px-3 py-1 rounded-lg bg-clinical-emerald text-navy-950">Dial Now</span>
+        </a>
+
+        <div class="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10 text-xs text-slate-300">
+          <div class="flex items-center gap-2.5">
+            <i data-lucide="clock" class="w-4 h-4 text-slate-400"></i>
+            <span>Consultation Timings</span>
+          </div>
+          <span class="font-mono text-[11px] text-slate-400">09:00 AM – 02:00 PM</span>
+        </div>
+      </div>
+
+      <button onclick="closeCallModal()" class="w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-xs font-semibold text-slate-300 transition">
+        Close Window
+      </button>
+    </div>
+  </div>
+
+  <!-- ================= REAL DOCUMENT & HTML PREVIEW MODAL ================= -->
+  <div id="report-view-modal" class="fixed inset-0 z-[99998] bg-navy-950/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 hidden">
+    <div class="clinical-glass max-w-4xl w-full h-[90vh] flex flex-col p-5 border-white/15 shadow-2xl relative">
+      
+      <!-- Modal Header -->
+      <div class="flex items-center justify-between pb-3 border-b border-white/10 shrink-0">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-clinical-emerald/20 border border-clinical-emerald/40 flex items-center justify-center text-clinical-emerald">
+            <i data-lucide="file-text" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 id="receipt-modal-title" class="text-sm sm:text-base font-bold text-white truncate max-w-md">Report Document</h3>
+            <p id="receipt-modal-date" class="text-[11px] text-slate-400 font-mono">Secured Document</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <a id="modal-open-external-btn" href="#" target="_blank" class="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition">
+            <i data-lucide="external-link" class="w-3.5 h-3.5"></i> Open Full
+          </a>
+          <button onclick="closeReportViewModal()" class="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center text-slate-400 hover:text-white transition">
+            <i data-lucide="x" class="w-4 h-4"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Real Document Container (Embeds Clean HTML Report OR User PDF / Image) -->
+      <div id="document-embed-container" class="flex-1 bg-navy-950/80 rounded-xl my-3 p-2 overflow-y-auto border border-white/10 flex items-center justify-center">
+        <!-- Injected dynamically via openReportViewModal() -->
+      </div>
+
+      <!-- Footer Info -->
+      <div class="flex items-center justify-between pt-2 border-t border-white/10 shrink-0 text-xs font-mono">
+        <span class="text-slate-400 flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full bg-emerald-400"></span> Locally Secured In Vault
+        </span>
+        <button id="modal-download-btn" class="px-4 py-2 rounded-xl bg-gradient-to-r from-clinical-emerald to-teal-500 text-navy-950 text-xs font-extrabold flex items-center gap-2 hover:opacity-90 transition shadow-md">
+          <i data-lucide="download" class="w-4 h-4"></i> Save / Export
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ================= MAIN VIEW CONTAINER ================= -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-3 md:p-6 mb-16">
+
+    <!-- ================= TAB 1: OPD RADAR & DOCTORS ================= -->
+    <section id="screen-radar" class="space-y-8">
+      
+      <!-- HERO FULLSCREEN SATELLITE MAP -->
+      <div class="clinical-glass p-3 md:p-4 relative overflow-hidden shadow-2xl border-white/15" data-tilt data-tilt-max="1" data-tilt-speed="600">
+        
+        <div class="relative rounded-2xl overflow-hidden border border-white/10 shadow-2xl h-[70vh] md:h-[80vh] w-full">
+          <div id="clinical-satellite-map" class="w-full h-full z-0"></div>
+
+          <!-- Top-Left Map Recon Banner -->
+          <div class="absolute top-4 left-4 z-[400] flex items-center gap-2.5 bg-navy-950/90 backdrop-blur-md px-4 py-2.5 rounded-xl border border-white/15 shadow-2xl">
+            <div class="w-2.5 h-2.5 rounded-full bg-clinical-emerald animate-pulse"></div>
+            <div>
+              <span class="text-[11px] font-extrabold text-white uppercase tracking-wider font-mono block">Geographic Satellite Recon — Jammu</span>
+              <span class="text-[9px] font-mono text-emerald-400 flex items-center gap-1 font-semibold">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> ESRI High-Definition World Imagery (Zero Watermark)
+              </span>
+            </div>
+          </div>
+
+          <!-- Top-Right Legend HUD -->
+          <div class="absolute top-4 right-4 z-[400] hidden sm:flex items-center gap-2 bg-navy-950/90 backdrop-blur-md px-3.5 py-2 rounded-xl border border-white/15 text-[10px] font-mono text-slate-300 shadow-2xl">
+            <span class="flex items-center gap-1.5 text-emerald-400 font-bold">
+              <span class="w-2 h-2 rounded-full bg-emerald-400"></span> In OPD
+            </span>
+            <span class="text-slate-600">|</span>
+            <span class="flex items-center gap-1.5 text-amber-400 font-bold">
+              <span class="w-2 h-2 rounded-full bg-amber-400"></span> Rounds
+            </span>
+            <span class="text-slate-600">|</span>
+            <span class="flex items-center gap-1.5 text-rose-400 font-bold">
+              <span class="w-2 h-2 rounded-full bg-rose-400"></span> OT/ER
+            </span>
+          </div>
+
+          <!-- Bottom-Left Telemetry HUD Widget -->
+          <div class="absolute bottom-6 left-4 z-[400] flex items-center gap-2 sm:gap-4 bg-navy-950/90 backdrop-blur-md p-2 rounded-2xl border border-white/15 shadow-2xl pointer-events-auto">
+            <div class="px-3 py-1.5 text-center border-r border-white/10">
+              <span class="block text-[8px] text-slate-400 font-mono font-semibold uppercase">TOTAL DOCTORS</span>
+              <span id="stats-total-docs" class="text-xs sm:text-sm font-extrabold text-white">14 Listed</span>
+            </div>
+            <div class="px-3 py-1.5 text-center border-r border-white/10">
+              <span class="block text-[8px] text-slate-400 font-mono font-semibold uppercase">ACTIVE IN CLINIC</span>
+              <span id="stats-in-opd" class="text-xs sm:text-sm font-extrabold text-clinical-emerald">10 Online</span>
+            </div>
+            <div class="px-3 py-1.5 text-center">
+              <span class="block text-[8px] text-slate-400 font-mono font-semibold uppercase">AVG. WAIT</span>
+              <span class="text-xs sm:text-sm font-extrabold text-emerald-300">~14 mins</span>
+            </div>
+          </div>
+
+          <!-- CENTERED FLOATING SCROLL PILL (Tasteful Orange Minimalist Accent) -->
+          <div class="absolute bottom-6 left-1/2 -translate-x-1/2 z-[400] pointer-events-auto">
+            <button onclick="scrollToChambersSection()" class="group flex items-center gap-2.5 px-6 py-3 rounded-full bg-navy-950/95 hover:bg-navy-900 border-2 border-accent-orange/70 hover:border-accent-orange text-white text-xs font-bold font-mono tracking-wider shadow-[0_0_25px_rgba(249,115,22,0.35)] transition-all transform hover:scale-105 active:scale-95 animate-bounce">
+              <span class="text-orange-400 group-hover:text-white transition">Explore Doctor Chambers & OPDs</span>
+              <i data-lucide="arrow-down" class="w-4 h-4 text-orange-400 group-hover:translate-y-0.5 transition-transform"></i>
+            </button>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- DOCTOR & CLINIC DIRECTORY ANCHOR SECTION -->
+      <div id="opd-directory-anchor" class="pt-4 space-y-6">
+        
+        <!-- Filter Bar Header -->
+        <div class="clinical-glass p-6 border-white/15 space-y-5">
+          <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div>
+              <div class="flex items-center gap-2.5">
+                <span class="w-3 h-3 rounded-full bg-clinical-emerald animate-pulse"></span>
+                <h2 class="text-lg font-bold text-white tracking-wide">Live OPD Ledger & Doctor Chambers</h2>
+              </div>
+              <p class="text-xs text-slate-300 mt-1 font-medium">
+                Verified government OPDs and leading private specialist clinics across Jammu. View live queues, call chambers, and secure tokens.
+              </p>
+            </div>
+
+            <!-- Search Field -->
+            <div class="relative min-w-[320px]">
+              <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2"></i>
+              <input type="text" id="doctor-search-input" oninput="handleDoctorSearch(event)" placeholder="Search doctor, hospital, clinic, sector, room..." class="w-full bg-navy-950/70 border border-white/15 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white focus:outline-none focus:border-clinical-emerald transition shadow-inner font-medium">
+            </div>
+          </div>
+
+          <!-- Sector & Specialty Filtering Row -->
+          <div class="flex flex-wrap items-center gap-2.5 pt-2 border-t border-white/10">
+            <!-- Facility Sector Toggle -->
+            <div class="flex items-center bg-navy-950/80 p-1 rounded-xl border border-white/15 mr-2">
+              <button onclick="setSectorFilter('All')" class="sector-btn px-3.5 py-1.5 rounded-lg text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 transition" data-sector="All">All Facilities</button>
+              <button onclick="setSectorFilter('Govt')" class="sector-btn px-3.5 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-white transition" data-sector="Govt">Govt OPD (Free)</button>
+              <button onclick="setSectorFilter('Private')" class="sector-btn px-3.5 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-white transition" data-sector="Private">Private Clinics</button>
+            </div>
+
+            <div class="h-5 w-[1px] bg-white/10 hidden sm:block"></div>
+
+            <!-- Department Specialty Filter Pills -->
+            <div class="flex items-center gap-1.5 overflow-x-auto py-1" id="dept-pills">
+              <button onclick="setDeptFilter('All')" class="dept-btn px-3.5 py-1.5 rounded-xl text-xs font-bold bg-white/20 text-white border border-white/25 whitespace-nowrap transition" data-dept="All">All Specialties</button>
+              <button onclick="setDeptFilter('Cardiology')" class="dept-btn px-3 py-1.5 rounded-xl text-xs font-medium text-slate-300 hover:text-white border border-white/5 whitespace-nowrap transition" data-dept="Cardiology">Cardiology</button>
+              <button onclick="setDeptFilter('General Medicine')" class="dept-btn px-3 py-1.5 rounded-xl text-xs font-medium text-slate-300 hover:text-white border border-white/5 whitespace-nowrap transition" data-dept="General Medicine">General Medicine</button>
+              <button onclick="setDeptFilter('Orthopaedics')" class="dept-btn px-3 py-1.5 rounded-xl text-xs font-medium text-slate-300 hover:text-white border border-white/5 whitespace-nowrap transition" data-dept="Orthopaedics">Orthopaedics</button>
+              <button onclick="setDeptFilter('Neurology')" class="dept-btn px-3 py-1.5 rounded-xl text-xs font-medium text-slate-300 hover:text-white border border-white/5 whitespace-nowrap transition" data-dept="Neurology">Neurology</button>
+              <button onclick="setDeptFilter('Paediatrics')" class="dept-btn px-3 py-1.5 rounded-xl text-xs font-medium text-slate-300 hover:text-white border border-white/5 whitespace-nowrap transition" data-dept="Paediatrics">Paediatrics</button>
+              <button onclick="setDeptFilter('ENT')" class="dept-btn px-3 py-1.5 rounded-xl text-xs font-medium text-slate-300 hover:text-white border border-white/5 whitespace-nowrap transition" data-dept="ENT">ENT</button>
+              <button onclick="setDeptFilter('Dermatology')" class="dept-btn px-3 py-1.5 rounded-xl text-xs font-medium text-slate-300 hover:text-white border border-white/5 whitespace-nowrap transition" data-dept="Dermatology">Dermatology</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- DOCTOR CHAMBERS: Spacious 3-Column Grid -->
+        <div class="space-y-4">
+          <div class="flex items-center justify-between px-1">
+            <span class="text-xs font-bold text-slate-300 uppercase tracking-wider font-mono">Specialist Consultation Directory</span>
+            <span id="results-count-badge" class="text-xs text-emerald-400 font-mono font-bold">14 Centers Found</span>
+          </div>
+
+          <div id="doctor-cards-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- Dynamically populated via renderDoctorDirectory() -->
+          </div>
+        </div>
+
+      </div>
+
+    </section>
+
+    <!-- ================= TAB 2: CLEAN DIAGNOSTIC VAULT ================= -->
+    <section id="screen-vault" class="space-y-6 hidden">
+      
+      <!-- Vault Header -->
+      <div class="clinical-glass p-6 border-clinical-emerald/30 relative overflow-hidden">
+        <div class="max-w-2xl">
+          <div class="flex items-center gap-2 mb-1">
+            <i data-lucide="shield-check" class="w-5 h-5 text-clinical-emerald"></i>
+            <span class="text-xs font-mono uppercase tracking-widest text-clinical-emerald font-bold">Diagnostic Health Vault</span>
+          </div>
+          <h2 class="text-lg md:text-xl font-bold text-white">Your Personal Health Records</h2>
+          <p class="text-xs text-slate-300 mt-1.5 leading-relaxed font-medium">
+            Name your test, upload your original PDF or image, and keep it secured on your device with instant viewable access.
+          </p>
+        </div>
+      </div>
+
+      <!-- Clean Upload Card -->
+      <div class="clinical-glass-card p-6 space-y-4 border-white/15">
+        <div class="flex items-center justify-between border-b border-white/10 pb-3">
+          <div>
+            <h3 class="text-sm font-bold text-white flex items-center gap-2">
+              <i data-lucide="upload-cloud" class="w-4 h-4 text-clinical-emerald"></i> Secure New Report
+            </h3>
+            <p class="text-[11px] text-slate-400 mt-0.5 font-medium">Test report name is strictly required to categorize and secure your document</p>
+          </div>
+        </div>
+
+        <form id="vault-upload-form" onsubmit="handleSecureReportSubmit(event)" class="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+          <div class="md:col-span-1">
+            <label class="block text-[11px] font-mono text-slate-300 mb-1 font-semibold">Test Report Name *</label>
+            <input type="text" id="vault-input-title" placeholder="e.g. Complete Blood Count (CBC)" required class="w-full bg-navy-950/70 border border-white/20 focus:border-clinical-emerald rounded-xl px-3.5 py-2.5 text-xs text-white outline-none transition font-semibold shadow-inner">
+          </div>
+
+          <div class="md:col-span-1">
+            <label class="block text-[11px] font-mono text-slate-300 mb-1 font-semibold">Select PDF or Photo *</label>
+            <label class="w-full py-2.5 px-3.5 rounded-xl bg-navy-950/70 border border-white/20 hover:border-clinical-emerald text-xs text-white flex items-center justify-between cursor-pointer transition shadow-inner">
+              <span id="vault-selected-file-name" class="truncate max-w-[200px] text-slate-400 font-medium">Choose file (PDF, JPG, PNG)</span>
+              <i data-lucide="paperclip" class="w-4 h-4 text-clinical-emerald shrink-0"></i>
+              <input type="file" id="vault-file-input" onchange="handleFileSelectionChange(event)" accept="application/pdf,image/*" class="hidden">
+            </label>
+          </div>
+
+          <div class="md:col-span-1 flex items-end">
+            <button type="submit" class="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-clinical-emerald to-teal-500 text-navy-950 font-extrabold text-xs shadow-md hover:opacity-95 transition flex items-center justify-center gap-2">
+              <i data-lucide="lock" class="w-3.5 h-3.5"></i>
+              <span>Save & Secure Report</span>
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Logged Reports List -->
+      <div class="space-y-4">
+        <div class="flex items-center justify-between px-1">
+          <span class="text-xs font-bold text-slate-300 uppercase tracking-wider font-mono">Secured Documents</span>
+          <span id="vault-records-count" class="text-xs text-emerald-400 font-mono font-bold bg-emerald-500/15 px-2 py-0.5 rounded border border-emerald-500/30">0 Saved</span>
+        </div>
+
+        <div id="vault-reports-grid" class="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <!-- Rendered by renderSimplifiedVault() -->
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ================= TAB 3: MY LIVE TOKENS ================= -->
+    <section id="screen-tokens" class="space-y-6 hidden">
+      
+      <!-- Tokens Header -->
+      <div class="clinical-glass p-6 border-white/15">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <div class="flex items-center gap-2">
+              <i data-lucide="ticket" class="w-5 h-5 text-accent-orange"></i>
+              <h2 class="text-base font-bold text-white tracking-wide">My Active OPD Tokens</h2>
+            </div>
+            <p class="text-xs text-slate-300 mt-1 font-medium">
+              Your booked slots. Watch real-time counter changes and listen for hospital PA room callouts.
+            </p>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <button onclick="simulateHospitalCallDemo()" class="px-4 py-2.5 rounded-xl bg-accent-orange/15 hover:bg-accent-orange/25 border border-accent-orange/40 text-xs font-bold text-orange-300 transition flex items-center gap-2 shadow-sm">
+              <i data-lucide="volume-2" class="w-4 h-4"></i> Replay Airport/Hospital PA Call
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Active Tokens List Container -->
+      <div id="active-tokens-container" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Rendered by renderActiveTokens() -->
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ================= FLOATING CLINICAL DECISION TRIAGE WIZARD ================= -->
+  <div class="fixed bottom-6 right-6 z-[9999] flex flex-col items-end gap-3">
+    
+    <!-- Chat Modal Window -->
+    <div id="ai-chat-card" class="clinical-glass w-[340px] sm:w-[395px] h-[540px] flex flex-col overflow-hidden border-2 border-clinical-emerald/40 shadow-2xl hidden">
+      
+      <!-- Assistant Header -->
+      <div class="bg-navy-950 border-b border-white/10 px-4 py-3 flex items-center justify-between shrink-0">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-xl bg-clinical-emerald/20 border border-clinical-emerald/40 flex items-center justify-center text-clinical-emerald shadow-sm">
+            <i data-lucide="git-branch" class="w-4 h-4"></i>
+          </div>
+          <div>
+            <h4 class="text-xs font-bold text-white">Continuum Clinical Triage</h4>
+            <span class="text-[10px] text-emerald-400 flex items-center gap-1 font-mono font-semibold">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Dynamic Decision Tree
+            </span>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="resetTriageFlow()" class="px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-[10px] font-mono text-slate-300 transition flex items-center gap-1" title="Restart Assessment">
+            <i data-lucide="rotate-ccw" class="w-3 h-3"></i> Reset
+          </button>
+          <button onclick="toggleAIChat()" class="w-7 h-7 rounded-lg hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition">
+            <i data-lucide="x" class="w-4 h-4"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Dialogue Thread with Interactive MCQ Buttons -->
+      <div id="ai-messages-thread" class="flex-1 p-4 overflow-y-auto space-y-4 bg-navy-950/60 text-xs">
+        <!-- Rendered by renderTriageStep() -->
+      </div>
+    </div>
+
+    <!-- Floating Toggle Button with Glowing Ring -->
+    <button onclick="toggleAIChat()" class="w-14 h-14 rounded-2xl bg-gradient-to-tr from-clinical-emerald to-teal-500 p-0.5 shadow-[0_0_25px_rgba(16,185,129,0.4)] hover:scale-105 transition-transform flex items-center justify-center group" title="Open Clinical Triage Navigator">
+      <div class="w-full h-full bg-navy-900 rounded-[14px] flex items-center justify-center text-clinical-emerald group-hover:text-white transition">
+        <i data-lucide="stethoscope" class="w-6 h-6 animate-pulse"></i>
+      </div>
+    </button>
+  </div>
+
+  <!-- ================= APP LOGIC & DATA REPOSITORY ================= -->
+  <script>
+    // --- 14 SPECIALISTS ACROSS JAMMU ---
+    const SEEDED_DOCTORS = [
+      {
+        id: 'doc-jammu-1',
+        name: 'Dr. Rajeshwar Sharma',
+        dept: 'Cardiology',
+        sector: 'Govt',
+        hospital: 'GMC Superspecialty Wing',
+        address: 'Super Specialty Hospital, Resham Ghar Colony, Bakshi Nagar, Jammu',
+        room: 'Room 04 (Cardiac OPD Block, 1st Floor)',
+        phone: '+91 191 258 4234',
+        lat: 32.7305,
+        lng: 74.8565,
+        liveStatus: 'In OPD',
+        tokenPrefix: 'CRD',
+        currentToken: 14,
+        waitingCount: 4,
+        approxWaitMin: 16,
+        rating: 4.9,
+        fee: 'Free (Govt OPD)',
+        specialtyType: 'cardio'
+      },
+      {
+        id: 'doc-jammu-2',
+        name: 'Dr. Ananya Jamwal',
+        dept: 'General Medicine',
+        sector: 'Govt',
+        hospital: 'GMC Main OPD Complex',
+        address: 'Govt Medical College Hospital, Medical Enclave, Bakshi Nagar, Jammu',
+        room: 'Room 12 (Main OPD Ground Floor)',
+        phone: '+91 191 258 4240',
+        lat: 32.7335,
+        lng: 74.8590,
+        liveStatus: 'Ward Rounds',
+        tokenPrefix: 'GEN',
+        currentToken: 21,
+        waitingCount: 7,
+        approxWaitMin: 35,
+        rating: 4.8,
+        fee: 'Free (Govt OPD)',
+        specialtyType: 'medicine'
+      },
+      {
+        id: 'doc-jammu-3',
+        name: 'Dr. Vikramaditya Rathore',
+        dept: 'Orthopaedics',
+        sector: 'Govt',
+        hospital: 'GMC Trauma & Bone Hospital',
+        address: 'Maheshpura Chowk, Near GMC Old Gate, Jammu',
+        room: 'Room 08 (Orthopaedic Wing, Ground Floor)',
+        phone: '+91 191 258 4245',
+        lat: 32.7290,
+        lng: 74.8520,
+        liveStatus: 'In OPD',
+        tokenPrefix: 'ORT',
+        currentToken: 9,
+        waitingCount: 3,
+        approxWaitMin: 12,
+        rating: 4.7,
+        fee: 'Free (Govt OPD)',
+        specialtyType: 'ortho'
+      },
+      {
+        id: 'doc-jammu-4',
+        name: 'Dr. Mehak Qureshi',
+        dept: 'Paediatrics',
+        sector: 'Govt',
+        hospital: 'SMGS Hospital',
+        address: 'Shalamar Road, Old Heritage City, Jammu',
+        room: 'Room 03 (Child Health Block, 1st Floor)',
+        phone: '+91 191 254 7635',
+        lat: 32.7360,
+        lng: 74.8690,
+        liveStatus: 'In OPD',
+        tokenPrefix: 'PED',
+        currentToken: 11,
+        waitingCount: 5,
+        approxWaitMin: 20,
+        rating: 4.9,
+        fee: 'Free (Govt OPD)',
+        specialtyType: 'paediatrics'
+      },
+      {
+        id: 'doc-jammu-5',
+        name: 'Dr. Tariq Lone',
+        dept: 'Neurology',
+        sector: 'Govt',
+        hospital: 'GMC Superspecialty Wing',
+        address: 'Super Specialty Hospital, Resham Ghar Colony, Bakshi Nagar, Jammu',
+        room: 'Room 09 (Neuro OPD, 2nd Floor)',
+        phone: '+91 191 258 4238',
+        lat: 32.7315,
+        lng: 74.8575,
+        liveStatus: 'Emergency / OT',
+        tokenPrefix: 'NEU',
+        currentToken: 6,
+        waitingCount: 8,
+        approxWaitMin: 60,
+        rating: 4.8,
+        fee: 'Free (Govt OPD)',
+        specialtyType: 'neuro'
+      },
+      {
+        id: 'doc-jammu-6',
+        name: 'Dr. Sunil Koul',
+        dept: 'General Medicine',
+        sector: 'Govt',
+        hospital: 'Govt Hospital Gandhi Nagar',
+        address: 'Main Apsara Road, Gandhi Nagar, Jammu',
+        room: 'Room 02 (Emergency & OPD Wing)',
+        phone: '+91 191 243 0041',
+        lat: 32.7050,
+        lng: 74.8630,
+        liveStatus: 'In OPD',
+        tokenPrefix: 'GEN',
+        currentToken: 18,
+        waitingCount: 2,
+        approxWaitMin: 8,
+        rating: 4.6,
+        fee: 'Free (Govt OPD)',
+        specialtyType: 'medicine'
+      },
+      {
+        id: 'doc-jammu-7',
+        name: 'Dr. Arvind Manhas',
+        dept: 'ENT',
+        sector: 'Govt',
+        hospital: 'Govt Hospital Gandhi Nagar',
+        address: 'Main Apsara Road, Block B, Gandhi Nagar, Jammu',
+        room: 'Room 07 (ENT Consultation Suite)',
+        phone: '+91 191 243 0043',
+        lat: 32.7065,
+        lng: 74.8645,
+        liveStatus: 'In OPD',
+        tokenPrefix: 'ENT',
+        currentToken: 15,
+        waitingCount: 3,
+        approxWaitMin: 14,
+        rating: 4.7,
+        fee: 'Free (Govt OPD)',
+        specialtyType: 'ent'
+      },
+      {
+        id: 'doc-jammu-8',
+        name: 'Dr. Sunita Bali',
+        dept: 'General Medicine',
+        sector: 'Govt',
+        hospital: 'SMGS Women Hospital',
+        address: 'Shalamar Road, Maternity Wing, Jammu',
+        room: 'Room 05 (Maternity OPD)',
+        phone: '+91 191 254 7638',
+        lat: 32.7375,
+        lng: 74.8705,
+        liveStatus: 'In OPD',
+        tokenPrefix: 'GYN',
+        currentToken: 24,
+        waitingCount: 6,
+        approxWaitMin: 28,
+        rating: 4.9,
+        fee: 'Free (Govt OPD)',
+        specialtyType: 'medicine'
+      },
+      {
+        id: 'doc-jammu-9',
+        name: 'Dr. Rohit Gupta',
+        dept: 'Cardiology',
+        sector: 'Private',
+        hospital: 'Jammu Heart Care Clinic',
+        address: 'Plot 42, Sector 3, Opposite Police Post, Channi Himmat, Jammu',
+        room: 'Chamber 1A (Ground Floor)',
+        phone: '+91 94191 88210',
+        lat: 32.6930,
+        lng: 74.8870,
+        liveStatus: 'In OPD',
+        tokenPrefix: 'JHC',
+        currentToken: 8,
+        waitingCount: 2,
+        approxWaitMin: 15,
+        rating: 4.9,
+        fee: '₹700 Approx Fee',
+        specialtyType: 'cardio'
+      },
+      {
+        id: 'doc-jammu-10',
+        name: 'Dr. Priya Malhotra',
+        dept: 'Paediatrics',
+        sector: 'Private',
+        hospital: 'Care & Cure Kids Clinic',
+        address: 'House 18, Block B/C, Main Road, Gandhi Nagar, Jammu',
+        room: 'Consultation Suite 2',
+        phone: '+91 94191 23411',
+        lat: 32.7085,
+        lng: 74.8680,
+        liveStatus: 'In OPD',
+        tokenPrefix: 'KID',
+        currentToken: 5,
+        waitingCount: 3,
+        approxWaitMin: 18,
+        rating: 4.9,
+        fee: '₹500 Approx Fee',
+        specialtyType: 'paediatrics'
+      },
+      {
+        id: 'doc-jammu-11',
+        name: 'Dr. Amit Khajuria',
+        dept: 'Orthopaedics',
+        sector: 'Private',
+        hospital: 'Spine & Joint Restoration Clinic',
+        address: 'Canal Road, Near Regional Research Lab, Talab Tillo, Jammu',
+        room: 'Chamber 3 (Bone Wing)',
+        phone: '+91 94192 45672',
+        lat: 32.7215,
+        lng: 74.8380,
+        liveStatus: 'In OPD',
+        tokenPrefix: 'SJC',
+        currentToken: 12,
+        waitingCount: 1,
+        approxWaitMin: 10,
+        rating: 4.8,
+        fee: '₹600 Approx Fee',
+        specialtyType: 'ortho'
+      },
+      {
+        id: 'doc-jammu-12',
+        name: 'Dr. Neeraj Sharma',
+        dept: 'Neurology',
+        sector: 'Private',
+        hospital: 'Apex Neuro & Brain Wellness Center',
+        address: 'Sector 1, Opposite Railway Complex, Trikuta Nagar, Jammu',
+        room: 'Executive Chamber 4B',
+        phone: '+91 94191 99012',
+        lat: 32.7010,
+        lng: 74.8760,
+        liveStatus: 'In OPD',
+        tokenPrefix: 'APX',
+        currentToken: 7,
+        waitingCount: 4,
+        approxWaitMin: 25,
+        rating: 4.9,
+        fee: '₹800 Approx Fee',
+        specialtyType: 'neuro'
+      },
+      {
+        id: 'doc-jammu-13',
+        name: 'Dr. Shalini Verma',
+        dept: 'Dermatology',
+        sector: 'Private',
+        hospital: 'DermaGlow Skin & Laser Clinic',
+        address: 'Main Janipur Road, Near High Court Complex, Jammu',
+        room: 'Laser Suite 1',
+        phone: '+91 94191 77234',
+        lat: 32.7520,
+        lng: 74.8450,
+        liveStatus: 'In OPD',
+        tokenPrefix: 'DER',
+        currentToken: 10,
+        waitingCount: 3,
+        approxWaitMin: 15,
+        rating: 4.9,
+        fee: '₹600 Approx Fee',
+        specialtyType: 'derma'
+      },
+      {
+        id: 'doc-jammu-14',
+        name: 'Dr. Rakesh Pandita',
+        dept: 'General Medicine',
+        sector: 'Govt',
+        hospital: 'GMC Superspecialty Wing',
+        address: 'Super Specialty Hospital, Resham Ghar Colony, Bakshi Nagar, Jammu',
+        room: 'Room 06 (Renal Care OPD, 3rd Floor)',
+        phone: '+91 191 258 4239',
+        lat: 32.7295,
+        lng: 74.8580,
+        liveStatus: 'In OPD',
+        tokenPrefix: 'NEP',
+        currentToken: 8,
+        waitingCount: 3,
+        approxWaitMin: 18,
+        rating: 4.8,
+        fee: 'Free (Govt OPD)',
+        specialtyType: 'medicine'
+      }
+    ];
+
+    // State Variables
+    let currentDeptFilter = 'All';
+    let currentSectorFilter = 'All';
+    let searchQuery = '';
+    let leafletMap = null;
+    let mapMarkerInstances = [];
+    let isAudioAnnounceEnabled = true;
+    let lastAnnouncedDoctorId = null;
+    let selectedVaultFile = null;
+
+    function getSpecialtySvgIcon(type, sizeClass = "w-5 h-5") {
+      switch (type) {
+        case 'cardio':
+          return `<svg class="${sizeClass}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>`;
+        case 'ortho':
+          return `<svg class="${sizeClass}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 10c.7-.7 1.6-1 2.5-1a3.5 3.5 0 1 1 0 7c-.9 0-1.8-.3-2.5-1l-10 10c-.7.7-1.6 1-2.5 1a3.5 3.5 0 1 1 0-7c.9 0 1.8.3 2.5 1l10-10c.7-.7 1.6-1 2.5-1a3.5 3.5 0 1 1 0 7c-.9 0-1.8.3-2.5-1Z"/><path d="M7 14c-.7.7-1.6 1-2.5 1a3.5 3.5 0 1 1 0-7c.9 0 1.8.3 2.5 1l10-10c.7-.7 1.6-1 2.5-1a3.5 3.5 0 1 1 0 7c-.9 0-1.8.3-2.5-1Z"/></svg>`;
+        case 'neuro':
+          return `<svg class="${sizeClass}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a5 5 0 0 0-5 5c0 .7.1 1.4.4 2A5 5 0 0 0 3 13a5 5 0 0 0 3 4.5V20a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-2.5a5 5 0 0 0 3-4.5 5 5 0 0 0-4.4-4A5 5 0 0 0 17 7a5 5 0 0 0-5-5Z"/><path d="M12 2v20"/></svg>`;
+        case 'paediatrics':
+          return `<svg class="${sizeClass}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12h.01"/><path d="M15 12h.01"/><path d="M10 16c.5.3 1.2.5 2 .5s1.5-.2 2-.5"/><path d="M19 6.3a9 9 0 0 1 1.8 3.9 2 2 0 0 1 0 3.6 9 9 0 0 1-17.6 0 2 2 0 0 1 0-3.6A9 9 0 0 1 12 3c2 0 3.5 1.1 3.5 2.5s-.9 2.5-2 2.5-2-1-2-2.5"/></svg>`;
+        case 'ent':
+          return `<svg class="${sizeClass}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8.5a6.5 6.5 0 1 1 13 0c0 6-6 6-6 10a3.5 3.5 0 1 1-7 0"/><path d="M15 8.5a2.5 2.5 0 0 0-5 0v2a2.5 2.5 0 0 0 5 0Z"/></svg>`;
+        case 'derma':
+          return `<svg class="${sizeClass}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg>`;
+        default:
+          return `<svg class="${sizeClass}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.8 2.3A.3.3 0 1 0 5 2H4a2 2 0 0 0-2 2v5a6 6 0 0 0 6 6v0a6 6 0 0 0 6-6V4a2 2 0 0 0-2-2h-1a.2.2 0 1 0 .3.3"/><path d="M8 15v1a6 6 0 0 0 6 6v0a6 6 0 0 0 6-6v-4"/><circle cx="20" cy="10" r="2"/></svg>`;
+      }
+    }
+
+    function getSpecialtyPalette(type) {
+      switch (type) {
+        case 'cardio':
+          return { color: '#f87171', bg: 'from-rose-500/20 to-orange-500/10 border-rose-500/40 text-rose-300' };
+        case 'ortho':
+          return { color: '#fbbf24', bg: 'from-amber-500/20 to-yellow-500/10 border-amber-500/40 text-amber-300' };
+        case 'neuro':
+          return { color: '#c084fc', bg: 'from-purple-500/20 to-indigo-500/10 border-purple-500/40 text-purple-300' };
+        case 'paediatrics':
+          return { color: '#f472b6', bg: 'from-pink-500/20 to-rose-500/10 border-pink-500/40 text-pink-300' };
+        case 'ent':
+          return { color: '#38bdf8', bg: 'from-sky-500/20 to-blue-500/10 border-sky-500/40 text-sky-300' };
+        case 'derma':
+          return { color: '#e879f9', bg: 'from-fuchsia-500/20 to-pink-500/10 border-fuchsia-500/40 text-fuchsia-300' };
+        default:
+          return { color: '#10b981', bg: 'from-emerald-500/20 to-teal-500/10 border-emerald-500/40 text-emerald-300' };
+      }
+    }
+
+    function scrollToChambersSection() {
+      const el = document.getElementById('opd-directory-anchor');
+      if (el) el.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // ================= AUDIO CHIME & SPEECH ENGINE =================
+    let audioContext = null;
+    function playAirportHospitalChime() {
+      if (!isAudioAnnounceEnabled) return;
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        audioContext = audioContext || new AudioCtx();
+        if (audioContext.state === 'suspended') audioContext.resume();
+
+        const frequencies = [587.33, 880.00, 659.25];
+        frequencies.forEach((freq, idx) => {
+          const osc = audioContext.createOscillator();
+          const gain = audioContext.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, audioContext.currentTime + (idx * 0.22));
+
+          gain.gain.setValueAtTime(0, audioContext.currentTime + (idx * 0.22));
+          gain.gain.linearRampToValueAtTime(0.20, audioContext.currentTime + (idx * 0.22) + 0.03);
+          gain.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + (idx * 0.22) + 0.55);
+
+          osc.connect(gain);
+          gain.connect(audioContext.destination);
+          osc.start(audioContext.currentTime + (idx * 0.22));
+          osc.stop(audioContext.currentTime + (idx * 0.22) + 0.60);
+        });
+      } catch (e) {
+        console.warn('Audio synthesis issue:', e);
+      }
+    }
+
+    function speakTokenDispatch(tokenStr, roomStr, hospitalName) {
+      if (!isAudioAnnounceEnabled || !('speechSynthesis' in window)) return;
+      window.speechSynthesis.cancel();
+      setTimeout(() => {
+        const msg = new SpeechSynthesisUtterance(`Attention please. Token ${tokenStr}, please proceed to ${roomStr}, ${hospitalName}.`);
+        msg.rate = 0.95;
+        msg.pitch = 1.05;
+        window.speechSynthesis.speak(msg);
+      }, 750);
+    }
+
+    function toggleAudioChime() {
+      isAudioAnnounceEnabled = !isAudioAnnounceEnabled;
+      const label = document.getElementById('audio-label');
+      const eq = document.getElementById('eq-container');
+      if (label) {
+        label.innerText = isAudioAnnounceEnabled ? 'PA: ACTIVE' : 'PA: MUTED';
+        label.className = isAudioAnnounceEnabled ? 'text-[11px] font-mono font-bold text-clinical-emerald' : 'text-[11px] font-mono font-bold text-slate-500';
+      }
+      if (eq) {
+        eq.style.opacity = isAudioAnnounceEnabled ? '1' : '0.2';
+      }
+      showNotificationToast('Audio Announcements', `Hospital voice PA is now ${isAudioAnnounceEnabled ? 'Active' : 'Muted'}.`);
+    }
+
+    function showNotificationToast(title, desc) {
+      const toast = document.getElementById('toast');
+      document.getElementById('toast-title').innerText = title;
+      document.getElementById('toast-desc').innerText = desc;
+      toast.classList.remove('translate-y-[-120%]', 'opacity-0');
+      toast.classList.add('translate-y-0', 'opacity-100');
+      setTimeout(() => {
+        toast.classList.add('translate-y-[-120%]', 'opacity-0');
+        toast.classList.remove('translate-y-0', 'opacity-100');
+      }, 4000);
+    }
+
+    // ================= ESRI SATELLITE MAP =================
+    function initSatelliteMap() {
+      if (leafletMap) return;
+      const mapContainer = document.getElementById('clinical-satellite-map');
+      if (!mapContainer) return;
+
+      leafletMap = L.map('clinical-satellite-map', {
+        zoomControl: false,
+        attributionControl: false
+      }).setView([32.7240, 74.8610], 13);
+
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        maxZoom: 19
+      }).addTo(leafletMap);
+
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
+        maxZoom: 19
+      }).addTo(leafletMap);
+
+      L.control.zoom({ position: 'bottomright' }).addTo(leafletMap);
+      renderSatelliteMapMarkers();
+    }
+
+    function renderSatelliteMapMarkers() {
+      if (!leafletMap) return;
+      mapMarkerInstances.forEach(m => leafletMap.removeLayer(m));
+      mapMarkerInstances = [];
+
+      const doctors = getFilteredDoctors();
+
+      doctors.forEach(doc => {
+        const palette = getSpecialtyPalette(doc.specialtyType);
+        const iconSvg = getSpecialtySvgIcon(doc.specialtyType, "w-5 h-5");
+
+        const customPinHtml = `
+          <div class="specialty-map-pin" style="color: ${palette.color};">
+            <div class="pin-radar" style="background-color: ${palette.color};"></div>
+            <div class="pin-badge" style="border-color: ${palette.color};">
+              ${iconSvg}
+            </div>
+          </div>
+        `;
+
+        const pinIcon = L.divIcon({
+          html: customPinHtml,
+          className: 'leaflet-specialty-marker',
+          iconSize: [44, 44],
+          iconAnchor: [22, 22]
+        });
+
+        const marker = L.marker([doc.lat, doc.lng], { icon: pinIcon }).addTo(leafletMap);
+        
+        marker.bindPopup(`
+          <div style="padding: 8px; min-width: 240px; font-family: 'Inter', sans-serif;">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 6px;">
+              <span style="font-size: 10px; font-weight:800; color: ${palette.color}; text-transform: uppercase;">● ${doc.liveStatus}</span>
+              <span style="font-size: 9px; font-family: monospace; padding: 2px 7px; border-radius: 999px; background: ${doc.sector === 'Govt' ? 'rgba(16,185,129,0.2)' : 'rgba(59,130,246,0.2)'}; color: ${doc.sector === 'Govt' ? '#34d399' : '#60a5fa'}; font-weight:800;">
+                ${doc.sector === 'Govt' ? 'GOVT OPD' : 'PVT CLINIC'}
+              </span>
+            </div>
+            <p style="font-weight: 800; font-size: 14px; margin: 0; color: #ffffff;">${doc.name}</p>
+            <p style="font-size: 11px; color: #34d399; font-weight: 700; margin: 2px 0 2px;">${doc.dept} • ${doc.hospital}</p>
+            <p style="font-size: 10px; color: #94a3b8; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${doc.address}</p>
+            <p style="font-size: 10px; color: #64748b; font-family: monospace; margin-bottom: 8px;">${doc.room}</p>
+            
+            <div style="border-top: 1px solid rgba(255,255,255,0.12); padding-top: 8px; display:flex; justify-content:space-between; align-items:center; gap:8px;">
+              <div>
+                <span style="font-size: 9px; color: #94a3b8; display:block; font-family: monospace;">NOW SERVING</span>
+                <span style="font-size: 14px; font-weight:800; font-family: monospace; color: #ffffff;">${doc.tokenPrefix}-${doc.currentToken}</span>
+              </div>
+              <div style="display:flex; gap:5px;">
+                <button onclick="openCallModal('${doc.id}')" style="background:rgba(255,255,255,0.1); color:#fff; border:1px solid rgba(255,255,255,0.2); border-radius:8px; padding:5px 9px; font-size:10px; font-weight:700; cursor:pointer;">
+                  Call
+                </button>
+                <button onclick="bookDigitalToken('${doc.id}')" style="background:#f97316; color:#050a12; border:none; border-radius:8px; padding:5px 10px; font-size:10px; font-weight:800; cursor:pointer;">
+                  Token
+                </button>
+              </div>
+            </div>
+          </div>
+        `);
+
+        mapMarkerInstances.push(marker);
+      });
+    }
+
+    // ================= DOCTOR DIRECTORY & SYMMETRICAL CARDS =================
+    function getFilteredDoctors() {
+      const docs = JSON.parse(localStorage.getItem('cc_doctors_data_v3')) || SEEDED_DOCTORS;
+      return docs.filter(doc => {
+        const matchesSector = currentSectorFilter === 'All' || doc.sector === currentSectorFilter;
+        const matchesDept = currentDeptFilter === 'All' || doc.dept.toLowerCase() === currentDeptFilter.toLowerCase();
+        const matchesQuery = searchQuery === '' || 
+          doc.name.toLowerCase().includes(searchQuery) ||
+          doc.dept.toLowerCase().includes(searchQuery) ||
+          doc.hospital.toLowerCase().includes(searchQuery) ||
+          doc.address.toLowerCase().includes(searchQuery) ||
+          doc.room.toLowerCase().includes(searchQuery);
+        return matchesSector && matchesDept && matchesQuery;
+      });
+    }
+
+    function renderDoctorDirectory() {
+      const container = document.getElementById('doctor-cards-list');
+      if (!container) return;
+
+      const doctors = getFilteredDoctors();
+      document.getElementById('results-count-badge').innerText = `${doctors.length} Centers Found`;
+
+      if (doctors.length === 0) {
+        container.innerHTML = `
+          <div class="col-span-full clinical-glass-card p-12 text-center">
+            <i data-lucide="info" class="w-10 h-10 text-slate-500 mx-auto mb-3"></i>
+            <p class="text-sm font-bold text-white">No doctors or clinics match this criteria</p>
+            <p class="text-xs text-slate-400 mt-1">Try switching facility filters or clearing your search keywords.</p>
+          </div>
+        `;
+        lucide.createIcons();
+        return;
+      }
+
+      const myBooked = JSON.parse(localStorage.getItem('cc_user_booked_tokens')) || [];
+
+      container.innerHTML = doctors.map(doc => {
+        let statusBadge = 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40';
+        let statusDot = 'bg-emerald-400';
+        if (doc.liveStatus === 'Ward Rounds') {
+          statusBadge = 'bg-amber-500/15 text-amber-300 border-amber-500/40';
+          statusDot = 'bg-amber-400';
+        } else if (doc.liveStatus === 'Emergency / OT') {
+          statusBadge = 'bg-rose-500/15 text-rose-300 border-rose-500/40';
+          statusDot = 'bg-rose-400';
+        } else if (doc.liveStatus === 'Off Duty') {
+          statusBadge = 'bg-slate-500/15 text-slate-400 border-slate-500/40';
+          statusDot = 'bg-slate-500';
+        }
+
+        const bookedInfo = myBooked.find(b => b.doctorId === doc.id);
+        const palette = getSpecialtyPalette(doc.specialtyType);
+        const specialtySvg = getSpecialtySvgIcon(doc.specialtyType, "w-6 h-6");
+
+        return `
+          <div id="doc-card-${doc.id}" class="clinical-glass-card p-6 flex flex-col justify-between transition-all duration-300 border-white/10" data-tilt data-tilt-max="2" data-tilt-glare data-tilt-max-glare="0.06">
+            <div class="space-y-4">
+              
+              <!-- Card Top Header -->
+              <div class="flex items-start justify-between gap-3">
+                <div class="flex items-start gap-3.5 min-w-0">
+                  <div class="w-12 h-12 rounded-2xl bg-gradient-to-br ${palette.bg} border flex items-center justify-center shrink-0 shadow-sm">
+                    ${specialtySvg}
+                  </div>
+                  <div class="min-w-0">
+                    <h3 class="text-sm font-bold text-white tracking-tight leading-snug truncate" title="${doc.name}">${doc.name}</h3>
+                    <p class="text-xs text-clinical-emerald font-bold mt-0.5 truncate">${doc.dept}</p>
+                    <p class="text-[11px] text-slate-300 font-medium truncate">${doc.hospital}</p>
+                  </div>
+                </div>
+
+                <!-- Sector Badge -->
+                <span class="text-[9px] font-mono px-2.5 py-1 rounded-full uppercase font-bold shrink-0 ${doc.sector === 'Govt' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-blue-500/20 text-blue-300 border border-blue-500/40'}">
+                  ${doc.sector === 'Govt' ? 'Govt OPD' : 'Private'}
+                </span>
+              </div>
+
+              <!-- Symmetrical Clean Single-Line Address & Room -->
+              <div class="bg-navy-950/70 rounded-xl p-3 border border-white/10 text-xs space-y-1">
+                <div class="flex items-center gap-2 text-slate-300 min-w-0">
+                  <i data-lucide="map-pin" class="w-3.5 h-3.5 text-clinical-emerald shrink-0"></i>
+                  <span class="text-[11px] truncate block font-medium" title="${doc.address}">${doc.address}</span>
+                </div>
+                <div class="flex items-center gap-2 text-slate-400 min-w-0">
+                  <i data-lucide="door-open" class="w-3.5 h-3.5 text-slate-500 shrink-0"></i>
+                  <span class="text-[11px] font-mono truncate block">${doc.room}</span>
+                </div>
+              </div>
+
+              <!-- 3-Column Queue Telemetry Box -->
+              <div class="grid grid-cols-3 gap-2 py-3 border-y border-white/10 bg-navy-950/60 rounded-xl px-3 text-center">
+                <div>
+                  <span class="text-[8px] font-mono text-slate-400 uppercase tracking-widest block font-semibold">Now Serving</span>
+                  <span class="text-base font-extrabold font-mono text-white mt-0.5 block">${doc.tokenPrefix}-${doc.currentToken}</span>
+                </div>
+                <div>
+                  <span class="text-[8px] font-mono text-slate-400 uppercase tracking-widest block font-semibold">In Queue</span>
+                  <span class="text-sm font-bold font-mono text-slate-200 mt-0.5 block">${doc.waitingCount}</span>
+                </div>
+                <div>
+                  <span class="text-[8px] font-mono text-slate-400 uppercase tracking-widest block font-semibold">Est. Wait</span>
+                  <span class="text-sm font-bold font-mono text-clinical-emerald mt-0.5 block font-extrabold">~${doc.approxWaitMin}m</span>
+                </div>
+              </div>
+
+              <!-- Symmetrical Baseline: Chamber State on Left, Fee on Right -->
+              <div class="flex items-center justify-between pt-1">
+                <div class="flex items-center gap-2">
+                  <span class="text-[10px] font-mono text-slate-400 uppercase tracking-wider font-semibold">State:</span>
+                  <div class="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border ${statusBadge}">
+                    <span class="w-1.5 h-1.5 rounded-full ${statusDot}"></span>
+                    <span class="text-[9px] font-bold tracking-wider uppercase">${doc.liveStatus}</span>
+                  </div>
+                </div>
+
+                <div class="text-[11px] font-mono font-extrabold ${doc.sector === 'Govt' ? 'text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30' : 'text-blue-300 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/30'}">
+                  ${doc.fee}
+                </div>
+              </div>
+
+            </div>
+
+            <!-- Card Action Footer Buttons (Minimalist Orange Accent for Token) -->
+            <div class="grid grid-cols-3 gap-2 pt-4 border-t border-white/10 mt-4">
+              <button onclick="openCallModal('${doc.id}')" class="py-2.5 px-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/15 text-xs text-slate-200 transition flex items-center justify-center gap-1.5 font-semibold">
+                <i data-lucide="phone" class="w-3.5 h-3.5 text-clinical-emerald"></i> Call
+              </button>
+
+              <button onclick="panToDoctorPin('${doc.id}')" class="py-2.5 px-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/15 text-xs text-slate-200 transition flex items-center justify-center gap-1.5 font-semibold">
+                <i data-lucide="crosshair" class="w-3.5 h-3.5 text-clinical-emerald"></i> Locate
+              </button>
+
+              ${bookedInfo ? `
+                <div class="py-2.5 px-2 rounded-xl bg-clinical-emerald/20 border border-clinical-emerald/40 text-clinical-emerald text-xs font-mono font-bold flex items-center justify-center gap-1">
+                  <i data-lucide="check" class="w-3.5 h-3.5"></i> ${bookedInfo.tokenNumber}
+                </div>
+              ` : `
+                <button onclick="bookDigitalToken('${doc.id}')" ${doc.liveStatus === 'Off Duty' ? 'disabled' : ''} class="py-2.5 px-2 rounded-xl ${doc.liveStatus === 'Off Duty' ? 'bg-navy-950 text-slate-600 border border-white/5 cursor-not-allowed' : 'bg-gradient-to-r from-accent-orange to-amber-500 hover:opacity-95 text-navy-950 shadow-[0_0_15px_rgba(249,115,22,0.3)]'} text-xs font-extrabold transition flex items-center justify-center gap-1">
+                  <i data-lucide="ticket" class="w-3.5 h-3.5"></i> Token
+                </button>
+              `}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      initUniversalTilt();
+      lucide.createIcons();
+    }
+
+    // Call Chamber Modal Logic
+    function openCallModal(docId) {
+      const docs = JSON.parse(localStorage.getItem('cc_doctors_data_v3')) || SEEDED_DOCTORS;
+      const doc = docs.find(d => d.id === docId);
+      if (!doc) return;
+
+      document.getElementById('modal-doc-name').innerText = doc.name;
+      document.getElementById('modal-doc-dept').innerText = `${doc.dept} • ${doc.hospital}`;
+      document.getElementById('modal-doc-address').innerText = doc.address;
+      document.getElementById('modal-doc-room').innerText = doc.room;
+      document.getElementById('modal-doc-fee').innerText = doc.fee;
+      document.getElementById('modal-doc-sector').innerText = doc.sector === 'Govt' ? 'Govt OPD' : 'Private Clinic';
+      
+      const phoneDisplay = document.getElementById('modal-phone-display');
+      const callDirect = document.getElementById('modal-call-direct');
+      phoneDisplay.innerText = doc.phone;
+      callDirect.href = `tel:${doc.phone.replace(/[^0-9+]/g, '')}`;
+
+      const modal = document.getElementById('call-chamber-modal');
+      modal.classList.remove('hidden');
+      initUniversalTilt();
+      lucide.createIcons();
+    }
+
+    function closeCallModal() {
+      document.getElementById('call-chamber-modal').classList.add('hidden');
+    }
+
+    function panToDoctorPin(docId) {
+      const doctors = JSON.parse(localStorage.getItem('cc_doctors_data_v3')) || SEEDED_DOCTORS;
+      const target = doctors.find(d => d.id === docId);
+      if (target && leafletMap) {
+        const mapEl = document.getElementById('clinical-satellite-map');
+        if (mapEl) {
+          mapEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        setTimeout(() => {
+          leafletMap.flyTo([target.lat, target.lng], 16, { duration: 1.2 });
+          mapMarkerInstances.forEach(marker => {
+            const latLng = marker.getLatLng();
+            if (Math.abs(latLng.lat - target.lat) < 0.0001 && Math.abs(latLng.lng - target.lng) < 0.0001) {
+              marker.openPopup();
+            }
+          });
+        }, 300);
+      }
+    }
+
+    function setSectorFilter(sector) {
+      currentSectorFilter = sector;
+      document.querySelectorAll('.sector-btn').forEach(btn => {
+        if (btn.dataset.sector === sector) {
+          btn.className = 'sector-btn px-3.5 py-1.5 rounded-lg text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 transition';
+        } else {
+          btn.className = 'sector-btn px-3.5 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-white transition';
+        }
+      });
+      renderSatelliteMapMarkers();
+      renderDoctorDirectory();
+    }
+
+    function setDeptFilter(dept) {
+      currentDeptFilter = dept;
+      document.querySelectorAll('.dept-btn').forEach(btn => {
+        if (btn.dataset.dept === dept) {
+          btn.className = 'dept-btn px-3.5 py-1.5 rounded-xl text-xs font-bold bg-white/20 text-white border border-white/25 whitespace-nowrap transition';
+        } else {
+          btn.className = 'dept-btn px-3 py-1.5 rounded-xl text-xs font-medium text-slate-300 hover:text-white border border-white/5 whitespace-nowrap transition';
+        }
+      });
+      renderSatelliteMapMarkers();
+      renderDoctorDirectory();
+    }
+
+    function handleDoctorSearch(e) {
+      searchQuery = e.target.value.toLowerCase().trim();
+      renderSatelliteMapMarkers();
+      renderDoctorDirectory();
+    }
+
+    // ================= TOKEN BOOKING & AMBIENT DISPATCH =================
+    function bookDigitalToken(docId) {
+      let doctors = JSON.parse(localStorage.getItem('cc_doctors_data_v3')) || SEEDED_DOCTORS;
+      const docIndex = doctors.findIndex(d => d.id === docId);
+      if (docIndex < 0) return;
+
+      const doc = doctors[docIndex];
+      doc.waitingCount += 1;
+      const tokenNum = `${doc.tokenPrefix}-${doc.currentToken + doc.waitingCount}`;
+
+      localStorage.setItem('cc_doctors_data_v3', JSON.stringify(doctors));
+
+      let bookedTokens = JSON.parse(localStorage.getItem('cc_user_booked_tokens')) || [];
+      const newBooking = {
+        id: 'book-' + Date.now(),
+        doctorId: doc.id,
+        doctorName: doc.name,
+        dept: doc.dept,
+        hospital: doc.hospital,
+        room: doc.room,
+        tokenNumber: tokenNum,
+        bookedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        servingNow: `${doc.tokenPrefix}-${doc.currentToken}`,
+        status: 'Active in Queue'
+      };
+
+      bookedTokens.unshift(newBooking);
+      localStorage.setItem('cc_user_booked_tokens', JSON.stringify(bookedTokens));
+
+      playAirportHospitalChime();
+      showNotificationToast('Token Generated', `Allotted Token: ${tokenNum} for ${doc.name} (${doc.room})`);
+
+      updateTokenTabBadge();
+      renderDoctorDirectory();
+      renderSatelliteMapMarkers();
+      renderActiveTokens();
+    }
+
+    function updateTokenTabBadge() {
+      const bookedTokens = JSON.parse(localStorage.getItem('cc_user_booked_tokens')) || [];
+      const badge = document.getElementById('active-token-badge');
+      if (badge) {
+        if (bookedTokens.length > 0) badge.classList.remove('hidden');
+        else badge.classList.add('hidden');
+      }
+    }
+
+    function advanceRandomQueue() {
+      let doctors = JSON.parse(localStorage.getItem('cc_doctors_data_v3')) || SEEDED_DOCTORS;
+      let candidateDoctors = doctors.filter(d => d.liveStatus === 'In OPD' && d.id !== lastAnnouncedDoctorId);
+      if (candidateDoctors.length === 0) {
+        candidateDoctors = doctors.filter(d => d.liveStatus === 'In OPD');
+      }
+      if (candidateDoctors.length === 0) return;
+
+      const selectedDoc = candidateDoctors[Math.floor(Math.random() * candidateDoctors.length)];
+      lastAnnouncedDoctorId = selectedDoc.id;
+
+      selectedDoc.currentToken += 1;
+      if (selectedDoc.waitingCount > 0) {
+        selectedDoc.waitingCount = Math.max(0, selectedDoc.waitingCount - 1);
+      } else {
+        selectedDoc.waitingCount = Math.floor(Math.random() * 4) + 1;
+      }
+      
+      const newDispatchToken = `${selectedDoc.tokenPrefix}-${selectedDoc.currentToken}`;
+      localStorage.setItem('cc_doctors_data_v3', JSON.stringify(doctors));
+
+      let booked = JSON.parse(localStorage.getItem('cc_user_booked_tokens')) || [];
+      booked.forEach(b => {
+        if (b.doctorId === selectedDoc.id) {
+          b.servingNow = newDispatchToken;
+        }
+      });
+      localStorage.setItem('cc_user_booked_tokens', JSON.stringify(booked));
+
+      playAirportHospitalChime();
+      speakTokenDispatch(newDispatchToken, selectedDoc.room, selectedDoc.hospital);
+      showNotificationToast(`Hospital PA Dispatch: ${newDispatchToken}`, `Now calling at ${selectedDoc.room} (${selectedDoc.hospital})`);
+
+      renderDoctorDirectory();
+      renderSatelliteMapMarkers();
+      renderActiveTokens();
+    }
+
+    setInterval(advanceRandomQueue, 35000);
+
+    function simulateHospitalCallDemo() {
+      advanceRandomQueue();
+    }
+
+    // ================= REAL DIAGNOSTIC VAULT =================
+    const DEFAULT_SEED_REPORTS = [
+      {
+        id: 'rep-seed-1',
+        title: 'Comprehensive Blood & Lipid Panel',
+        date: '02 Nov 2026',
+        isDemoHtml: true,
+        fileType: 'html',
+        fileName: 'Blood_Lipid_Profile.pdf',
+        lab: 'GMC Central Diagnostics Laboratory, Jammu',
+        patient: 'Prityanshu (M/22)',
+        parameters: [
+          { name: 'Total Cholesterol', val: '218 mg/dL', ref: '< 200 mg/dL', flag: 'HIGH' },
+          { name: 'Triglycerides', val: '180 mg/dL', ref: '< 150 mg/dL', flag: 'HIGH' },
+          { name: 'HDL Cholesterol', val: '44 mg/dL', ref: '> 40 mg/dL', flag: 'NORMAL' },
+          { name: 'LDL Cholesterol', val: '134 mg/dL', ref: '< 100 mg/dL', flag: 'ELEVATED' }
+        ]
+      },
+      {
+        id: 'rep-seed-2',
+        title: 'Quarterly HbA1c & Fasting Glucose',
+        date: '28 Oct 2026',
+        isDemoHtml: true,
+        fileType: 'html',
+        fileName: 'HbA1c_Glucose_Panel.pdf',
+        lab: 'Dr. Lal PathLabs, Gandhi Nagar, Jammu',
+        patient: 'Prityanshu (M/22)',
+        parameters: [
+          { name: 'HbA1c (Glycated Hemoglobin)', val: '6.4 %', ref: '< 5.7 %', flag: 'PRE-DIABETIC' },
+          { name: 'Fasting Blood Glucose', val: '112 mg/dL', ref: '70 - 99 mg/dL', flag: 'ELEVATED' },
+          { name: 'Estimated Average Glucose', val: '137 mg/dL', ref: '< 126 mg/dL', flag: 'ELEVATED' }
+        ]
+      }
+    ];
+
+    function getStoredLabReports() {
+      const stored = localStorage.getItem('cc_real_vault_files_v2');
+      if (stored) return JSON.parse(stored);
+      localStorage.setItem('cc_real_vault_files_v2', JSON.stringify(DEFAULT_SEED_REPORTS));
+      return DEFAULT_SEED_REPORTS;
+    }
+
+    function renderSimplifiedVault() {
+      const container = document.getElementById('vault-reports-grid');
+      if (!container) return;
+
+      const reports = getStoredLabReports();
+      document.getElementById('vault-records-count').innerText = `${reports.length} Saved`;
+
+      if (reports.length === 0) {
+        container.innerHTML = `
+          <div class="col-span-full clinical-glass-card p-10 text-center border-white/10">
+            <i data-lucide="folder-open" class="w-8 h-8 text-slate-500 mx-auto mb-2"></i>
+            <p class="text-sm font-bold text-white">Vault is Empty</p>
+            <p class="text-xs text-slate-400 mt-1">Upload a lab report or clinical document above to secure it.</p>
+          </div>
+        `;
+        lucide.createIcons();
+        return;
+      }
+
+      container.innerHTML = reports.map(rep => `
+        <div class="clinical-glass-card p-5 border-white/10 flex flex-col justify-between" data-tilt data-tilt-max="2">
+          <div class="space-y-3">
+            <div class="flex items-start justify-between gap-3">
+              <div class="flex items-center gap-3 min-w-0">
+                <div class="w-10 h-10 rounded-xl bg-clinical-emerald/20 border border-clinical-emerald/40 flex items-center justify-center text-clinical-emerald shrink-0">
+                  <i data-lucide="${rep.fileType === 'pdf' ? 'file-text' : (rep.fileType === 'image' ? 'image' : 'flask-conical')}" class="w-5 h-5"></i>
+                </div>
+                <div class="min-w-0">
+                  <h4 class="text-sm font-bold text-white truncate" title="${rep.title}">${rep.title}</h4>
+                  <p class="text-[11px] text-slate-400 font-mono mt-0.5">${rep.date} • <span class="uppercase text-clinical-emerald font-bold">${rep.fileType}</span></p>
+                </div>
+              </div>
+              <button onclick="deleteVaultReport('${rep.id}')" class="text-slate-500 hover:text-rose-400 p-1 transition" title="Delete from Vault">
+                <i data-lucide="trash-2" class="w-4 h-4"></i>
+              </button>
+            </div>
+
+            <div class="p-2.5 rounded-xl bg-navy-950/70 border border-white/10 text-xs font-mono text-slate-300 flex items-center justify-between">
+              <span class="truncate max-w-[240px] text-[11px] font-medium">${rep.fileName}</span>
+              <span class="text-emerald-400 text-[10px] font-bold">SECURED</span>
+            </div>
+          </div>
+
+          <div class="pt-4 border-t border-white/10 mt-4 flex items-center justify-between">
+            <span class="text-[10px] font-mono text-slate-500 uppercase font-semibold">VAULT STORAGE</span>
+            <button onclick="openReportViewModal('${rep.id}')" class="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-clinical-emerald to-teal-500 text-navy-950 text-xs font-extrabold flex items-center gap-1.5 transition shadow-sm">
+              <i data-lucide="eye" class="w-3.5 h-3.5"></i> View Document
+            </button>
+          </div>
+        </div>
+      `).join('');
+
+      initUniversalTilt();
+      lucide.createIcons();
+    }
+
+    function handleFileSelectionChange(e) {
+      if (e.target.files && e.target.files[0]) {
+        selectedVaultFile = e.target.files[0];
+        document.getElementById('vault-selected-file-name').innerText = selectedVaultFile.name;
+        document.getElementById('vault-selected-file-name').className = 'truncate max-w-[200px] text-white font-semibold';
+      }
+    }
+
+    function handleSecureReportSubmit(e) {
+      e.preventDefault();
+      const titleInput = document.getElementById('vault-input-title');
+      const title = titleInput.value.trim();
+
+      if (!title) {
+        showNotificationToast('Test Name Required', 'Please enter a name for the test report.');
+        titleInput.focus();
+        return;
+      }
+
+      if (!selectedVaultFile) {
+        showNotificationToast('File Missing', 'Please select a PDF or Image file to store in your vault.');
+        return;
+      }
+
+      const reader = new FileReader();
+      const file = selectedVaultFile;
+      const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+
+      reader.onload = function(event) {
+        const fileDataUrl = event.target.result;
+        let reports = getStoredLabReports();
+
+        const newReport = {
+          id: 'rep-' + Date.now(),
+          title: title,
+          date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+          fileType: isPdf ? 'pdf' : 'image',
+          isDemoHtml: false,
+          fileName: file.name,
+          fileData: fileDataUrl
+        };
+
+        reports.unshift(newReport);
+
+        try {
+          localStorage.setItem('cc_real_vault_files_v2', JSON.stringify(reports));
+        } catch (storageErr) {
+          console.warn('Storage limit reached, saving in active session:', storageErr);
+        }
+
+        titleInput.value = '';
+        selectedVaultFile = null;
+        document.getElementById('vault-file-input').value = '';
+        document.getElementById('vault-selected-file-name').innerText = 'Choose file (PDF, JPG, PNG)';
+        document.getElementById('vault-selected-file-name').className = 'truncate max-w-[200px] text-slate-400 font-medium';
+
+        playAirportHospitalChime();
+        showNotificationToast('Document Secured', `Successfully saved "${title}" to your Diagnostic Vault.`);
+        renderSimplifiedVault();
+      };
+
+      reader.readAsDataURL(file);
+    }
+
+    function deleteVaultReport(repId) {
+      let reports = getStoredLabReports();
+      reports = reports.filter(r => r.id !== repId);
+      localStorage.setItem('cc_real_vault_files_v2', JSON.stringify(reports));
+      showNotificationToast('Document Removed', 'Report deleted from your local vault.');
+      renderSimplifiedVault();
+    }
+
+    // Modal Real Viewer Logic
+    function openReportViewModal(repId) {
+      const reports = getStoredLabReports();
+      const rep = reports.find(r => r.id === repId);
+      if (!rep) return;
+
+      const patientName = localStorage.getItem('cc_patient_name') || 'Prityanshu';
+      document.getElementById('receipt-modal-title').innerText = rep.title;
+      document.getElementById('receipt-modal-date').innerText = `Date Secured: ${rep.date} • File: ${rep.fileName}`;
+
+      const embedContainer = document.getElementById('document-embed-container');
+      const externalBtn = document.getElementById('modal-open-external-btn');
+      const downloadBtn = document.getElementById('modal-download-btn');
+
+      if (rep.isDemoHtml) {
+        externalBtn.href = '#';
+        externalBtn.onclick = (e) => { e.preventDefault(); downloadDemoReportText(rep, patientName); };
+        downloadBtn.onclick = () => downloadDemoReportText(rep, patientName);
+
+        embedContainer.innerHTML = `
+          <div class="bg-navy-950/90 rounded-2xl p-6 border border-white/15 font-mono text-xs space-y-4 shadow-inner max-w-lg w-full my-auto text-left">
+            <div class="border-b border-white/10 pb-3 text-center space-y-1">
+              <h4 class="font-bold text-white text-sm uppercase">${rep.lab || 'CENTRAL DIAGNOSTIC LABORATORY'}</h4>
+              <p class="text-[10px] text-slate-400">CLINICAL PATHOLOGY & BIOCHEMISTRY REPORT</p>
+              <p class="text-[9px] text-emerald-400 font-semibold">ACCESSION: LAB-JK-2026-98412 | ABDM SYNCED</p>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 text-[11px] text-slate-300">
+              <div>PATIENT: <span class="text-white font-bold">${patientName}</span></div>
+              <div class="text-right">DATE: <span class="text-white">${rep.date}</span></div>
+              <div>SAMPLE: <span class="text-emerald-400 font-bold">VERIFIED</span></div>
+              <div class="text-right">TYPE: <span class="text-emerald-400 font-bold font-mono">SERUM/BLOOD</span></div>
+            </div>
+
+            <div class="border-y border-white/10 py-3 space-y-2">
+              <div class="flex justify-between font-bold text-slate-400 text-[10px]">
+                <span>TEST PARAMETER</span>
+                <span>RESULT / REF RANGE</span>
+              </div>
+              <div class="space-y-1.5 text-slate-200 text-[11px]">
+                ${rep.parameters ? rep.parameters.map(p => `
+                  <div class="flex items-center justify-between py-1 border-b border-white/5">
+                    <span class="text-slate-300">${p.name}</span>
+                    <div class="text-right">
+                      <span class="font-bold ${p.flag === 'NORMAL' ? 'text-emerald-400' : 'text-amber-400'}">${p.val}</span>
+                      <span class="text-[9px] text-slate-500 ml-1">(${p.ref})</span>
+                    </div>
+                  </div>
+                `).join('') : '<p class="text-slate-400">Standard clinical panel values verified.</p>'}
+              </div>
+            </div>
+
+            <div class="text-center pt-2 space-y-2">
+              <div class="inline-block px-3 py-1 rounded bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[10px] font-bold">
+                ✓ DIGITALLY VERIFIED CLINICAL RECORD
+              </div>
+              <div class="text-slate-500 tracking-[0.3em] font-mono text-base select-none">
+                |||| || | ||||| | ||| || |||||| | ||
+              </div>
+              <p class="text-[9px] text-slate-500">MedContinuum Cloud Cryptographic Health Vault</p>
+            </div>
+          </div>
+        `;
+      } else {
+        externalBtn.onclick = null;
+        externalBtn.href = rep.fileData;
+        downloadBtn.onclick = () => {
+          const a = document.createElement('a');
+          a.href = rep.fileData;
+          a.download = rep.fileName || `${rep.title.replace(/\s+/g, '_')}.${rep.fileType === 'pdf' ? 'pdf' : 'png'}`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        };
+
+        if (rep.fileType === 'pdf') {
+          embedContainer.innerHTML = `
+            <embed src="${rep.fileData}" type="application/pdf" class="w-full h-full rounded-xl border-none">
+          `;
+        } else {
+          embedContainer.innerHTML = `
+            <img src="${rep.fileData}" alt="${rep.title}" class="max-w-full max-h-full object-contain rounded-xl shadow-md">
+          `;
+        }
+      }
+
+      document.getElementById('report-view-modal').classList.remove('hidden');
+      lucide.createIcons();
+    }
+
+    function downloadDemoReportText(rep, patientName) {
+      let fileData = `========================================================\n`;
+      fileData += `    ${(rep.lab || 'CENTRAL DIAGNOSTICS LABORATORY').toUpperCase()}\n`;
+      fileData += `    CLINICAL PATHOLOGY & BIOCHEMISTRY REPORT\n`;
+      fileData += `========================================================\n\n`;
+      fileData += `TEST REPORT  : ${rep.title}\n`;
+      fileData += `PATIENT NAME : ${patientName}\n`;
+      fileData += `DATE         : ${rep.date}\n`;
+      fileData += `STATUS       : ABDM Cloud Digitally Verified\n\n`;
+      fileData += `--------------------------------------------------------\n`;
+      fileData += `TEST PARAMETER         RESULT        REFERENCE RANGE\n`;
+      fileData += `--------------------------------------------------------\n`;
+      if (rep.parameters) {
+        rep.parameters.forEach(p => {
+          fileData += `${p.name.padEnd(23)} ${p.val.padEnd(13)} ${p.ref}\n`;
+        });
+      }
+      fileData += `--------------------------------------------------------\n\n`;
+      fileData += `[DIGITALLY VERIFIED - MEDCONTINUUM CRYPTOGRAPHIC VAULT]\n`;
+      fileData += `SHA-256 HASH: a8f4b2390c1e87d0923f044919bc01928374\n`;
+
+      const blob = new Blob([fileData], { type: 'text/plain;charset=utf-8' });
+      const dlUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = dlUrl;
+      a.download = `${rep.title.replace(/[^a-zA-Z0-9]/g, '_')}_Report.txt`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(dlUrl);
+
+      showNotificationToast('Download Complete', `Exported verified report file: "${a.download}"`);
+    }
+
+    function closeReportViewModal() {
+      document.getElementById('report-view-modal').classList.add('hidden');
+      document.getElementById('document-embed-container').innerHTML = '';
+    }
+
+    // ================= ACTIVE TOKENS TAB =================
+    function renderActiveTokens() {
+      const container = document.getElementById('active-tokens-container');
+      if (!container) return;
+
+      const bookedTokens = JSON.parse(localStorage.getItem('cc_user_booked_tokens')) || [];
+
+      if (bookedTokens.length === 0) {
+        container.innerHTML = `
+          <div class="col-span-full clinical-glass-card p-12 text-center border-white/10">
+            <div class="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-slate-400 mx-auto mb-3 shadow-sm">
+              <i data-lucide="ticket" class="w-6 h-6"></i>
+            </div>
+            <h3 class="text-sm font-bold text-white">No Active Digital Tokens</h3>
+            <p class="text-xs text-slate-300 mt-1 max-w-sm mx-auto font-medium">
+              Visit the OPD Radar to browse available doctors and secure a queue token with live wait alerts.
+            </p>
+            <button onclick="switchMainTab('radar')" class="mt-4 px-4 py-2 rounded-xl bg-gradient-to-r from-clinical-emerald to-teal-500 text-navy-950 text-xs font-bold transition shadow-md">
+              Explore OPD Chambers
+            </button>
+          </div>
+        `;
+        lucide.createIcons();
+        return;
+      }
+
+      container.innerHTML = bookedTokens.map(tok => `
+        <div class="clinical-glass-card p-6 border-white/15 relative overflow-hidden" data-tilt data-tilt-max="3">
+          <div class="flex items-start justify-between gap-3 mb-4">
+            <div>
+              <span class="text-[10px] font-mono uppercase tracking-widest text-clinical-emerald font-bold">${tok.dept}</span>
+              <h3 class="text-base font-bold text-white mt-0.5">${tok.doctorName}</h3>
+              <p class="text-xs text-slate-300">${tok.hospital} • <span class="text-white font-mono font-bold">${tok.room}</span></p>
+            </div>
+            <span class="text-[10px] font-mono font-bold text-emerald-300 bg-emerald-500/20 border border-emerald-500/40 px-2.5 py-1 rounded-full">
+              ${tok.status}
+            </span>
+          </div>
+
+          <div class="bg-navy-950/80 border border-white/10 rounded-2xl p-6 text-center shadow-inner my-4 relative">
+            <p class="text-[10px] font-mono text-slate-400 uppercase tracking-widest font-semibold">Your Allotted Token</p>
+            <h2 class="text-4xl md:text-5xl font-black font-mono text-emerald-400 mt-1 drop-shadow-[0_0_20px_rgba(16,185,129,0.3)]">
+              ${tok.tokenNumber}
+            </h2>
+            <div class="flex items-center justify-center gap-4 mt-3 pt-3 border-t border-white/10 text-xs text-slate-300 font-mono font-semibold">
+              <span>Booked: ${tok.bookedAt}</span>
+              <span>•</span>
+              <span class="text-white">Current OPD: ${tok.servingNow}</span>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between gap-3 pt-1">
+            <button onclick="cancelToken('${tok.id}')" class="px-3 py-2 text-xs text-slate-400 hover:text-rose-400 transition font-semibold">
+              Cancel Token
+            </button>
+            <button onclick="broadcastSpecificTokenCall('${tok.tokenNumber}', '${tok.room}', '${tok.hospital}')" class="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/20 text-xs font-bold text-slate-200 transition flex items-center gap-1.5 shadow-sm">
+              <i data-lucide="volume-2" class="w-3.5 h-3.5 text-clinical-emerald"></i> Replay PA Audio
+            </button>
+          </div>
+        </div>
+      `).join('');
+
+      initUniversalTilt();
+      lucide.createIcons();
+    }
+
+    function cancelToken(tokenId) {
+      let tokens = JSON.parse(localStorage.getItem('cc_user_booked_tokens')) || [];
+      tokens = tokens.filter(t => t.id !== tokenId);
+      localStorage.setItem('cc_user_booked_tokens', JSON.stringify(tokens));
+      showNotificationToast('Token Cancelled', 'Your token has been removed from the live queue.');
+      updateTokenTabBadge();
+      renderActiveTokens();
+      renderDoctorDirectory();
+    }
+
+    function broadcastSpecificTokenCall(tokenNumber, room, hospital) {
+      playAirportHospitalChime();
+      speakTokenDispatch(tokenNumber, room, hospital);
+      showNotificationToast('PA Broadcast Sent', `Announcing token ${tokenNumber} for ${room}`);
+    }
+
+    // ================= TAB NAVIGATION =================
+    function switchMainTab(tabKey) {
+      const activeClass = 'flex-1 lg:flex-initial flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs font-extrabold transition-all duration-200 whitespace-nowrap bg-gradient-to-r from-emerald-500 to-teal-600 text-slate-950 shadow-[0_0_20px_rgba(16,185,129,0.4)]';
+      const inactiveClass = 'flex-1 lg:flex-initial flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs font-semibold text-slate-300 hover:text-white transition-all duration-200 whitespace-nowrap';
+
+      ['radar', 'vault', 'tokens'].forEach(k => {
+        const screen = document.getElementById(`screen-${k}`);
+        const btn = document.getElementById(`tab-btn-${k}`);
+        if (k === tabKey) {
+          screen.classList.remove('hidden');
+          btn.className = activeClass;
+          const icon = btn.querySelector('svg');
+          if (icon) icon.setAttribute('stroke', '#050a12');
+        } else {
+          screen.classList.add('hidden');
+          btn.className = inactiveClass;
+        }
+      });
+
+      if (tabKey === 'radar') {
+        renderDoctorDirectory();
+        if (leafletMap) {
+          setTimeout(() => leafletMap.invalidateSize(), 200);
+        }
+      } else if (tabKey === 'vault') {
+        renderSimplifiedVault();
+      } else if (tabKey === 'tokens') {
+        renderActiveTokens();
+      }
+
+      initUniversalTilt();
+      lucide.createIcons();
+    }
+
+    // ================= INITIALIZATION & 3D TILT =================
+    function initUniversalTilt() {
+      if (typeof VanillaTilt !== 'undefined') {
+        const tiltElements = document.querySelectorAll("[data-tilt]");
+        tiltElements.forEach(el => {
+          if (el.vanillaTilt) {
+            el.vanillaTilt.destroy();
+          }
+        });
+        VanillaTilt.init(tiltElements, {
+          max: 6,
+          speed: 450,
+          glare: true,
+          "max-glare": 0.08,
+          perspective: 1100,
+          scale: 1.01
+        });
+      }
+    }
+
+    // ================= INTERACTIVE MCQ CLINICAL DECISION TRIAGE =================
+    let isAIChatOpen = false;
+    let triageData = {
+      step: 1,
+      age: null,
+      ageLabel: '',
+      area: null,
+      areaLabel: '',
+      selectedSymptoms: []
+    };
+
+    const SYMPTOM_DATA_BY_AREA = {
+      cardio: [
+        { id: 'c1', text: 'Chest heaviness / tightness', severe: true },
+        { id: 'c2', text: 'Rapid heart fluttering / palpitations', severe: false },
+        { id: 'c3', text: 'Breathlessness on walking', severe: true },
+        { id: 'c4', text: 'Pain radiating to left arm/jaw', severe: true },
+        { id: 'c5', text: 'Dizziness or lightheadedness', severe: false },
+        { id: 'c6', text: 'Ankle / leg swelling', severe: false }
+      ],
+      ortho: [
+        { id: 'o1', text: 'Severe knee / hip joint pain', severe: false },
+        { id: 'o2', text: 'Swelling & stiffness in joints', severe: false },
+        { id: 'o3', text: 'Lower back / spine nerve pain', severe: false },
+        { id: 'o4', text: 'Recent fall or suspected fracture', severe: true },
+        { id: 'o5', text: 'Inability to bear weight on leg', severe: true },
+        { id: 'o6', text: 'Morning joint stiffness > 1 hour', severe: false }
+      ],
+      neuro: [
+        { id: 'n1', text: 'Sudden severe throbbing headache', severe: true },
+        { id: 'n2', text: 'Numbness or weakness in one side', severe: true },
+        { id: 'n3', text: 'Tremors or involuntary shaking', severe: false },
+        { id: 'n4', text: 'Memory loss / disorientation', severe: false },
+        { id: 'n5', text: 'Spinning sensation (Vertigo)', severe: false },
+        { id: 'n6', text: 'Episode of blackout / seizure', severe: true }
+      ],
+      ent: [
+        { id: 'e1', text: 'Severe earache or pus discharge', severe: false },
+        { id: 'e2', text: 'Sudden reduced hearing in ear', severe: false },
+        { id: 'e3', text: 'Sore throat & painful swallowing', severe: false },
+        { id: 'e4', text: 'Persistent nasal blockage / sinus pain', severe: false },
+        { id: 'e5', text: 'Hoarseness of voice > 2 weeks', severe: false },
+        { id: 'e6', text: 'Ringing sounds in ears (Tinnitus)', severe: false }
+      ],
+      derma: [
+        { id: 'd1', text: 'Intense itching and red skin patches', severe: false },
+        { id: 'd2', text: 'Sudden hives / allergic eruption', severe: false },
+        { id: 'd3', text: 'Severe cystic acne / facial rash', severe: false },
+        { id: 'd4', text: 'Unusual mole / growing pigment lesion', severe: false },
+        { id: 'd5', text: 'Scalp itching with rapid hair fall', severe: false },
+        { id: 'd6', text: 'Non-healing skin ulceration', severe: true }
+      ],
+      general: [
+        { id: 'g1', text: 'High fever (102°F+) with chills', severe: false },
+        { id: 'g2', text: 'Persistent dry or productive cough', severe: false },
+        { id: 'g3', text: 'Severe abdominal stomach pain', severe: true },
+        { id: 'g4', text: 'Extreme fatigue and body weakness', severe: false },
+        { id: 'g5', text: 'Uncontrolled high BP / Sugar check', severe: false },
+        { id: 'g6', text: 'Frequent vomiting or dehydration', severe: true }
+      ]
+    };
+
+    function toggleAIChat() {
+      isAIChatOpen = !isAIChatOpen;
+      const card = document.getElementById('ai-chat-card');
+      if (isAIChatOpen) {
+        card.classList.remove('hidden');
+        if (triageData.step === 1 && !triageData.age) {
+          renderTriageStep();
+        }
+      } else {
+        card.classList.add('hidden');
+      }
+    }
+
+    function resetTriageFlow() {
+      triageData = {
+        step: 1,
+        age: null,
+        ageLabel: '',
+        area: null,
+        areaLabel: '',
+        selectedSymptoms: []
+      };
+      renderTriageStep();
+    }
+
+    function renderTriageStep() {
+      const thread = document.getElementById('ai-messages-thread');
+      if (!thread) return;
+
+      if (triageData.step === 1) {
+        thread.innerHTML = `
+          <div class="flex gap-2.5">
+            <div class="w-7 h-7 rounded-full bg-clinical-emerald/20 border border-clinical-emerald/40 flex items-center justify-center text-clinical-emerald shrink-0 mt-0.5">
+              <i data-lucide="bot" class="w-4 h-4"></i>
+            </div>
+            <div class="space-y-3 flex-1">
+              <div class="clinical-glass-card rounded-tl-none p-3.5 text-slate-200 border-white/10">
+                <p class="font-bold text-white mb-1">Step 1: Patient Age Group</p>
+                <p class="text-[11px] text-slate-400">Select the age bracket of the patient requiring medical consultation:</p>
+              </div>
+
+              <div class="grid grid-cols-1 gap-2">
+                <button onclick="handleSelectAge('child', 'Child / Infant (0 - 14 yrs)')" class="w-full text-left p-3 rounded-xl bg-navy-950/70 hover:bg-clinical-emerald/15 border border-white/10 hover:border-clinical-emerald text-slate-200 transition group flex items-center justify-between shadow-sm">
+                  <div class="flex items-center gap-2.5">
+                    <span class="text-base">👶</span>
+                    <div>
+                      <p class="text-xs font-bold text-white group-hover:text-clinical-emerald transition">Child / Infant</p>
+                      <p class="text-[10px] text-slate-400 font-medium">0 – 14 years old (Paediatric care)</p>
+                    </div>
+                  </div>
+                  <i data-lucide="chevron-right" class="w-4 h-4 text-slate-500 group-hover:text-clinical-emerald"></i>
+                </button>
+
+                <button onclick="handleSelectAge('young', 'Young Adult (15 - 35 yrs)')" class="w-full text-left p-3 rounded-xl bg-navy-950/70 hover:bg-clinical-emerald/15 border border-white/10 hover:border-clinical-emerald text-slate-200 transition group flex items-center justify-between shadow-sm">
+                  <div class="flex items-center gap-2.5">
+                    <span class="text-base">🧑</span>
+                    <div>
+                      <p class="text-xs font-bold text-white group-hover:text-clinical-emerald transition">Young Adult</p>
+                      <p class="text-[10px] text-slate-400 font-medium">15 – 35 years old</p>
+                    </div>
+                  </div>
+                  <i data-lucide="chevron-right" class="w-4 h-4 text-slate-500 group-hover:text-clinical-emerald"></i>
+                </button>
+
+                <button onclick="handleSelectAge('adult', 'Middle Aged Adult (36 - 59 yrs)')" class="w-full text-left p-3 rounded-xl bg-navy-950/70 hover:bg-clinical-emerald/15 border border-white/10 hover:border-clinical-emerald text-slate-200 transition group flex items-center justify-between shadow-sm">
+                  <div class="flex items-center gap-2.5">
+                    <span class="text-base">👨‍💼</span>
+                    <div>
+                      <p class="text-xs font-bold text-white group-hover:text-clinical-emerald transition">Middle Aged Adult</p>
+                      <p class="text-[10px] text-slate-400 font-medium">36 – 59 years old</p>
+                    </div>
+                  </div>
+                  <i data-lucide="chevron-right" class="w-4 h-4 text-slate-500 group-hover:text-clinical-emerald"></i>
+                </button>
+
+                <button onclick="handleSelectAge('senior', 'Senior Citizen (60+ yrs)')" class="w-full text-left p-3 rounded-xl bg-navy-950/70 hover:bg-clinical-emerald/15 border border-white/10 hover:border-clinical-emerald text-slate-200 transition group flex items-center justify-between shadow-sm">
+                  <div class="flex items-center gap-2.5">
+                    <span class="text-base">👴</span>
+                    <div>
+                      <p class="text-xs font-bold text-white group-hover:text-clinical-emerald transition">Senior Citizen</p>
+                      <p class="text-[10px] text-slate-400 font-medium">60+ years old (Geriatric check)</p>
+                    </div>
+                  </div>
+                  <i data-lucide="chevron-right" class="w-4 h-4 text-slate-500 group-hover:text-clinical-emerald"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      } 
+      else if (triageData.step === 2) {
+        thread.innerHTML = `
+          <div class="flex justify-end">
+            <div class="bg-gradient-to-r from-clinical-emerald to-teal-500 text-navy-950 font-bold px-3 py-1.5 rounded-xl rounded-tr-none text-xs flex items-center gap-1.5 shadow-sm">
+              <span>Age: ${triageData.ageLabel}</span>
+            </div>
+          </div>
+
+          <div class="flex gap-2.5">
+            <div class="w-7 h-7 rounded-full bg-clinical-emerald/20 border border-clinical-emerald/40 flex items-center justify-center text-clinical-emerald shrink-0 mt-0.5">
+              <i data-lucide="bot" class="w-4 h-4"></i>
+            </div>
+            <div class="space-y-3 flex-1">
+              <div class="clinical-glass-card rounded-tl-none p-3.5 text-slate-200 border-white/10">
+                <p class="font-bold text-white mb-1">Step 2: Primary Area Affected</p>
+                <p class="text-[11px] text-slate-400">Which organ system or body region is causing symptoms?</p>
+              </div>
+
+              <div class="grid grid-cols-2 gap-2">
+                <button onclick="handleSelectArea('cardio', 'Chest & Heart')" class="p-3 rounded-xl bg-navy-950/70 hover:bg-rose-500/15 border border-white/10 hover:border-rose-400 text-left transition group shadow-sm">
+                  <span class="text-base block mb-1">🫀</span>
+                  <p class="text-xs font-bold text-white group-hover:text-rose-400 transition">Chest & Heart</p>
+                  <p class="text-[9px] text-slate-400 font-medium">Breathing, pressure</p>
+                </button>
+
+                <button onclick="handleSelectArea('ortho', 'Bones & Joints')" class="p-3 rounded-xl bg-navy-950/70 hover:bg-amber-500/15 border border-white/10 hover:border-amber-400 text-left transition group shadow-sm">
+                  <span class="text-base block mb-1">🦴</span>
+                  <p class="text-xs font-bold text-white group-hover:text-amber-400 transition">Bones & Joints</p>
+                  <p class="text-[9px] text-slate-400 font-medium">Mobility, fracture</p>
+                </button>
+
+                <button onclick="handleSelectArea('neuro', 'Brain & Nerves')" class="p-3 rounded-xl bg-navy-950/70 hover:bg-purple-500/15 border border-white/10 hover:border-purple-400 text-left transition group shadow-sm">
+                  <span class="text-base block mb-1">🧠</span>
+                  <p class="text-xs font-bold text-white group-hover:text-purple-400 transition">Brain & Nerves</p>
+                  <p class="text-[9px] text-slate-400 font-medium">Headache, tremors</p>
+                </button>
+
+                <button onclick="handleSelectArea('ent', 'Ear, Nose & Throat')" class="p-3 rounded-xl bg-navy-950/70 hover:bg-sky-500/15 border border-white/10 hover:border-sky-400 text-left transition group shadow-sm">
+                  <span class="text-base block mb-1">👂</span>
+                  <p class="text-xs font-bold text-white group-hover:text-sky-400 transition">Ear, Nose, Throat</p>
+                  <p class="text-[9px] text-slate-400 font-medium">Swallowing, sinus</p>
+                </button>
+
+                <button onclick="handleSelectArea('derma', 'Skin & Hair')" class="p-3 rounded-xl bg-navy-950/70 hover:bg-fuchsia-500/15 border border-white/10 hover:border-fuchsia-400 text-left transition group shadow-sm">
+                  <span class="text-base block mb-1">✨</span>
+                  <p class="text-xs font-bold text-white group-hover:text-fuchsia-400 transition">Skin & Hair</p>
+                  <p class="text-[9px] text-slate-400 font-medium">Rashes, allergies</p>
+                </button>
+
+                <button onclick="handleSelectArea('general', 'Whole Body / Fever')" class="p-3 rounded-xl bg-navy-950/70 hover:bg-clinical-emerald/15 border border-white/10 hover:border-clinical-emerald text-left transition group shadow-sm">
+                  <span class="text-base block mb-1">🩺</span>
+                  <p class="text-xs font-bold text-white group-hover:text-clinical-emerald transition">General / Fever</p>
+                  <p class="text-[9px] text-slate-400 font-medium">Stomach, fatigue</p>
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+      else if (triageData.step === 3) {
+        const symptomsList = SYMPTOM_DATA_BY_AREA[triageData.area] || SYMPTOM_DATA_BY_AREA.general;
+
+        thread.innerHTML = `
+          <div class="flex flex-wrap justify-end gap-1.5">
+            <span class="bg-white/10 text-slate-200 font-mono px-2.5 py-1 rounded-lg text-[10px] font-bold">Age: ${triageData.ageLabel}</span>
+            <span class="bg-clinical-emerald/20 text-emerald-300 font-mono px-2.5 py-1 rounded-lg text-[10px] font-bold">Area: ${triageData.areaLabel}</span>
+          </div>
+
+          <div class="flex gap-2.5">
+            <div class="w-7 h-7 rounded-full bg-clinical-emerald/20 border border-clinical-emerald/40 flex items-center justify-center text-clinical-emerald shrink-0 mt-0.5">
+              <i data-lucide="bot" class="w-4 h-4"></i>
+            </div>
+            <div class="space-y-3 flex-1">
+              <div class="clinical-glass-card rounded-tl-none p-3.5 text-slate-200 border-white/10">
+                <p class="font-bold text-white mb-1">Step 3: Select Specific Symptoms</p>
+                <p class="text-[11px] text-slate-400 font-medium">Tap all options that apply (Multiple selection enabled):</p>
+              </div>
+
+              <div class="space-y-1.5" id="symptom-checkbox-container">
+                ${symptomsList.map(sym => {
+                  const isChecked = triageData.selectedSymptoms.includes(sym.id);
+                  return `
+                    <button type="button" onclick="toggleSymptomOption('${sym.id}')" class="w-full text-left p-2.5 rounded-xl border transition flex items-center justify-between text-xs shadow-sm ${isChecked ? 'bg-clinical-emerald/20 border-clinical-emerald text-white font-bold' : 'bg-navy-950/70 border-white/10 text-slate-300 hover:border-white/25'}">
+                      <span>${sym.text}</span>
+                      <div class="w-4 h-4 rounded border flex items-center justify-center shrink-0 ${isChecked ? 'bg-clinical-emerald border-clinical-emerald text-navy-950' : 'border-white/20 bg-navy-900'}">
+                        ${isChecked ? '<i data-lucide="check" class="w-3 h-3 text-navy-950 stroke-[3]"></i>' : ''}
+                      </div>
+                    </button>
+                  `;
+                }).join('')}
+              </div>
+
+              <!-- Action button using tasteful orange -->
+              <button onclick="evaluateFinalTriageVerdict()" class="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-accent-orange to-amber-500 hover:opacity-95 text-navy-950 font-extrabold text-xs shadow-[0_0_20px_rgba(249,115,22,0.35)] transition flex items-center justify-center gap-2">
+                <span>Evaluate Symptoms & Allot Doctor</span>
+                <i data-lucide="arrow-right" class="w-4 h-4"></i>
+              </button>
+            </div>
+          </div>
+        `;
+      }
+      else if (triageData.step === 4) {
+        renderTriageVerdictScreen(thread);
+      }
+
+      initUniversalTilt();
+      lucide.createIcons();
+      thread.scrollTop = thread.scrollHeight;
+    }
+
+    function handleSelectAge(val, label) {
+      triageData.age = val;
+      triageData.ageLabel = label;
+      triageData.step = 2;
+      renderTriageStep();
+    }
+
+    function handleSelectArea(val, label) {
+      triageData.area = val;
+      triageData.areaLabel = label;
+      triageData.step = 3;
+      triageData.selectedSymptoms = [];
+      renderTriageStep();
+    }
+
+    function toggleSymptomOption(symId) {
+      const idx = triageData.selectedSymptoms.indexOf(symId);
+      if (idx > -1) {
+        triageData.selectedSymptoms.splice(idx, 1);
+      } else {
+        triageData.selectedSymptoms.push(symId);
+      }
+      renderTriageStep();
+    }
+
+    function evaluateFinalTriageVerdict() {
+      if (triageData.selectedSymptoms.length === 0) {
+        showNotificationToast('Please Select Symptoms', 'Select at least one symptom or tap an option to proceed.');
+        return;
+      }
+      triageData.step = 4;
+      renderTriageStep();
+    }
+
+    function renderTriageVerdictScreen(thread) {
+      let finalDept = 'General Medicine';
+      let recommendedDocName = 'Dr. Ananya Jamwal';
+      let recommendedRoom = 'Room 12 (Main OPD Ground Floor)';
+      let recommendedHospital = 'GMC Main OPD Complex';
+      let isEmergencyRedFlag = false;
+
+      if (triageData.age === 'child' && triageData.area !== 'ortho') {
+        finalDept = 'Paediatrics';
+        recommendedDocName = 'Dr. Mehak Qureshi';
+        recommendedRoom = 'Room 03 (Child Health Block)';
+        recommendedHospital = 'SMGS Hospital, Shalamar Road';
+      } else if (triageData.area === 'cardio') {
+        finalDept = 'Cardiology';
+        recommendedDocName = 'Dr. Rajeshwar Sharma';
+        recommendedRoom = 'Room 04 (Cardiac OPD Block)';
+        recommendedHospital = 'GMC Superspecialty Wing';
+        if (triageData.selectedSymptoms.includes('c1') || triageData.selectedSymptoms.includes('c4')) {
+          isEmergencyRedFlag = true;
+        }
+      } else if (triageData.area === 'ortho') {
+        finalDept = 'Orthopaedics';
+        recommendedDocName = 'Dr. Vikramaditya Rathore';
+        recommendedRoom = 'Room 08 (Orthopaedic Wing)';
+        recommendedHospital = 'GMC Trauma & Bone Hospital';
+        if (triageData.selectedSymptoms.includes('o4') || triageData.selectedSymptoms.includes('o5')) {
+          isEmergencyRedFlag = true;
+        }
+      } else if (triageData.area === 'neuro') {
+        finalDept = 'Neurology';
+        recommendedDocName = 'Dr. Tariq Lone';
+        recommendedRoom = 'Room 09 (Neuro OPD, 2nd Floor)';
+        recommendedHospital = 'GMC Superspecialty Wing';
+        if (triageData.selectedSymptoms.includes('n1') || triageData.selectedSymptoms.includes('n2') || triageData.selectedSymptoms.includes('n6')) {
+          isEmergencyRedFlag = true;
+        }
+      } else if (triageData.area === 'ent') {
+        finalDept = 'ENT';
+        recommendedDocName = 'Dr. Arvind Manhas';
+        recommendedRoom = 'Room 07 (ENT Suite)';
+        recommendedHospital = 'Govt Hospital Gandhi Nagar';
+      } else if (triageData.area === 'derma') {
+        finalDept = 'Dermatology';
+        recommendedDocName = 'Dr. Shalini Verma';
+        recommendedRoom = 'Laser Suite 1';
+        recommendedHospital = 'DermaGlow Skin & Laser Clinic, Janipur';
+      } else {
+        finalDept = 'General Medicine';
+        recommendedDocName = 'Dr. Sunil Koul';
+        recommendedRoom = 'Room 02 (Emergency & OPD Wing)';
+        recommendedHospital = 'Govt Hospital Gandhi Nagar';
+      }
+
+      thread.innerHTML = `
+        <div class="flex flex-wrap justify-end gap-1 text-[9px] font-mono">
+          <span class="bg-white/10 text-slate-200 px-2 py-0.5 rounded font-bold">${triageData.ageLabel}</span>
+          <span class="bg-white/10 text-slate-200 px-2 py-0.5 rounded font-bold">${triageData.areaLabel}</span>
+          <span class="bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded font-bold">${triageData.selectedSymptoms.length} Symptoms</span>
+        </div>
+
+        <div class="flex gap-2.5">
+          <div class="w-7 h-7 rounded-full bg-clinical-emerald/20 border border-clinical-emerald/40 flex items-center justify-center text-clinical-emerald shrink-0 mt-0.5 shadow-sm">
+            <i data-lucide="check-circle-2" class="w-4 h-4"></i>
+          </div>
+          <div class="space-y-3 flex-1">
+            
+            ${isEmergencyRedFlag ? `
+              <div class="p-3 rounded-xl bg-rose-500/20 border border-rose-500/50 text-rose-300 text-xs space-y-1 animate-pulse">
+                <p class="font-bold flex items-center gap-1.5 text-rose-200">
+                  <i data-lucide="alert-triangle" class="w-4 h-4 text-rose-400"></i> URGENT CLINICAL RED FLAG DETECTED
+                </p>
+                <p class="text-[10px] text-rose-300 leading-relaxed font-medium">
+                  Your symptoms suggest acute distress. Report directly to <strong>GMC 24/7 Emergency / Trauma Centre</strong> immediately!
+                </p>
+              </div>
+            ` : ''}
+
+            <!-- Allotted Department Card -->
+            <div class="clinical-glass-card rounded-tl-none p-4 border-clinical-emerald/30 space-y-2.5">
+              <span class="text-[9px] font-mono uppercase tracking-widest text-clinical-emerald font-bold block">
+                ● Triage Conclusion Reached
+              </span>
+              
+              <div>
+                <p class="text-[11px] text-slate-400 font-medium">Allotted Medical Department:</p>
+                <h3 class="text-base font-extrabold text-emerald-400">${finalDept}</h3>
+              </div>
+
+              <!-- Recommended Specialist Box -->
+              <div class="bg-navy-950/70 rounded-xl p-3 border border-white/10 text-xs space-y-1">
+                <p class="text-[10px] text-slate-400 font-mono uppercase tracking-wider font-semibold">Recommended Specialist:</p>
+                <h4 class="text-xs font-bold text-white">${recommendedDocName}</h4>
+                <p class="text-[11px] text-slate-300 font-medium">${recommendedHospital}</p>
+                <p class="text-[11px] text-emerald-400 font-mono font-bold">${recommendedRoom}</p>
+              </div>
+
+              <button onclick="applyTriageFilterAndScroll('${finalDept}')" class="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-clinical-emerald to-teal-500 text-navy-950 font-extrabold text-xs shadow-md hover:opacity-95 transition flex items-center justify-center gap-2">
+                <i data-lucide="compass" class="w-4 h-4"></i>
+                <span>Auto-Filter OPD Directory ↓</span>
+              </button>
+            </div>
+
+            <button onclick="resetTriageFlow()" class="w-full py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] font-mono text-slate-300 transition flex items-center justify-center gap-1.5">
+              <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> Restart Assessment
+            </button>
+
+          </div>
+        </div>
+      `;
+    }
+
+    function applyTriageFilterAndScroll(dept) {
+      setDeptFilter(dept);
+      toggleAIChat();
+      scrollToChambersSection();
+      showNotificationToast('OPD Directory Filtered', `Displaying all verified specialists in ${dept}`);
+    }
+
+    // ================= ONBOARDING / WELCOME WIZARD LOGIC =================
+    let currentOnboardStep = 1;
+
+    function initOnboardingCheck() {
+      const storedName = localStorage.getItem('cc_patient_name');
+      if (storedName) {
+        document.getElementById('top-patient-name').innerText = `Patient: ${storedName}`;
+      } else {
+        document.getElementById('welcome-onboarding-modal').classList.remove('hidden');
+        renderOnboardingStep();
+      }
+    }
+
+    function renderOnboardingStep() {
+      const stepBadge = document.getElementById('onboard-step-badge');
+      const icon = document.getElementById('onboard-main-icon');
+      const title = document.getElementById('onboard-title');
+      const sub = document.getElementById('onboard-subtitle');
+      const desc = document.getElementById('onboard-desc');
+      const nameContainer = document.getElementById('onboard-name-container');
+      const nextBtn = document.getElementById('onboard-next-btn');
+
+      document.getElementById('dot-1').className = currentOnboardStep === 1 ? 'w-7 h-1.5 rounded-full bg-clinical-emerald transition-all' : 'w-2 h-1.5 rounded-full bg-white/20 transition-all';
+      document.getElementById('dot-2').className = currentOnboardStep === 2 ? 'w-7 h-1.5 rounded-full bg-clinical-emerald transition-all' : 'w-2 h-1.5 rounded-full bg-white/20 transition-all';
+      document.getElementById('dot-3').className = currentOnboardStep === 3 ? 'w-7 h-1.5 rounded-full bg-clinical-emerald transition-all' : 'w-2 h-1.5 rounded-full bg-white/20 transition-all';
+
+      stepBadge.innerText = `STEP ${currentOnboardStep} OF 3`;
+
+      if (currentOnboardStep === 1) {
+        icon.setAttribute('data-lucide', 'shield-plus');
+        title.innerText = 'Welcome to MedContinuum';
+        sub.innerText = 'Patient Healthcare Navigation';
+        desc.innerText = 'Your centralized healthcare hub designed to eliminate blind OPD queues, connect specialists, and safeguard medical files.';
+        nameContainer.classList.remove('hidden');
+        nextBtn.innerHTML = `<span>Continue →</span>`;
+      } else if (currentOnboardStep === 2) {
+        icon.setAttribute('data-lucide', 'satellite');
+        title.innerText = 'Live OPD Radar & Audio PA';
+        sub.innerText = 'Real-time Hospital Telemetry';
+        desc.innerText = 'View real-time doctor statuses (In OPD, Ward Rounds, OT), explore ESRI satellite maps with specialty pins, and hear airport-style voice announcements for your tokens.';
+        nameContainer.classList.add('hidden');
+        nextBtn.innerHTML = `<span>Continue →</span>`;
+      } else if (currentOnboardStep === 3) {
+        icon.setAttribute('data-lucide', 'folder-lock');
+        title.innerText = 'Diagnostic Vault & Triage';
+        sub.innerText = 'Zero Clutter File Security';
+        desc.innerText = 'Upload and view your diagnostic PDFs/scans with instant offline preview, and use our clinical decision wizard for department routing.';
+        nameContainer.classList.add('hidden');
+        nextBtn.innerHTML = `<span>Get Started & Explore →</span>`;
+      }
+
+      lucide.createIcons();
+    }
+
+    function nextOnboardingStep() {
+      if (currentOnboardStep === 1) {
+        const inputName = document.getElementById('onboard-patient-input').value.trim() || 'Prityanshu';
+        localStorage.setItem('cc_patient_name', inputName);
+        document.getElementById('top-patient-name').innerText = `Patient: ${inputName}`;
+      }
+
+      if (currentOnboardStep < 3) {
+        currentOnboardStep++;
+        renderOnboardingStep();
+      } else {
+        skipOnboarding();
+      }
+    }
+
+    function skipOnboarding() {
+      const inputName = document.getElementById('onboard-patient-input')?.value.trim();
+      if (inputName && !localStorage.getItem('cc_patient_name')) {
+        localStorage.setItem('cc_patient_name', inputName);
+        document.getElementById('top-patient-name').innerText = `Patient: ${inputName}`;
+      }
+      document.getElementById('welcome-onboarding-modal').classList.add('hidden');
+    }
+
+    function openNameEditPrompt() {
+      currentOnboardStep = 1;
+      const current = localStorage.getItem('cc_patient_name') || 'Prityanshu';
+      const input = document.getElementById('onboard-patient-input');
+      if (input) input.value = current;
+      document.getElementById('welcome-onboarding-modal').classList.remove('hidden');
+      renderOnboardingStep();
+    }
+
+    // ================= DOM CONTENT LOADED =================
+    window.addEventListener('DOMContentLoaded', () => {
+      initSatelliteMap();
+      renderDoctorDirectory();
+      renderSimplifiedVault();
+      renderActiveTokens();
+      updateTokenTabBadge();
+      initUniversalTilt();
+      lucide.createIcons();
+      renderTriageStep();
+      initOnboardingCheck();
+    });
+  </script>
+</body>
+</html>
