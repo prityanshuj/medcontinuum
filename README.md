@@ -4,7 +4,7 @@
 
 <div align="center">
 
-# 🏥 MedContinuum (CareContinuum)
+# 🏥 MedContinuum
 ### Autonomous Patient Healthcare Navigation & OPD Queue Radar
 
 <p align="center">
