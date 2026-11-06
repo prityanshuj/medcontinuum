@@ -63,14 +63,6 @@ Patients from peripheral and rural regions often travel 40–50 km to tertiary h
 ---
 
 ## 🛠 Architecture & Tech Stack
-┌────────────────────────────────────────────────────────┐
-│                   MedContinuum Client                  │
-├─────────────────────┬───────────────────┬──────────────┤
-│    Presentation     │    Geospatial     │   Telemetry  │
-│  Tailwind CSS (v3)  │    Leaflet.js     │ Web Audio API│
-│  VanillaTilt (3D)   │ ESRI Satellite WM │Web Speech API│
-│   Lucide Icons      │ Custom SVG Markers│ LocalStorage │
-└─────────────────────┴───────────────────┴──────────────┘
 | Layer | Technologies |
 | :--- | :--- |
 | **Frontend Core** | Semantic HTML5, Vanilla JavaScript (ES6+), Modern Tailwind CSS |
