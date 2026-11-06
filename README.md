@@ -95,36 +95,36 @@ The prototype includes pre-seeded verified facilities across Jammu district:
 <table align="center">
   <tr>
     <td align="center" width="25%">
-      <a href="https://github.com/prityansjuj">
+      <a href="https://github.com/prityanshuj">
         <img src="https://github.com/prityansjuj.png" width="100px;" alt="Prityanshu Jasrotia"/><br />
         <sub><b>Prityanshu Jasrotia</b></sub>
       </a><br />
       <small>Lead Architecture & Full-Stack Systems</small><br />
-      <a href="https://github.com/prityansjuj"><code>@prityansjuj</code></a>
+      <a href="https://github.com/prityanshuj"><code>@prityanshujasrotia</code></a>
     </td>
     <td align="center" width="25%">
-      <a href="https://github.com/vrindagupta-gh">
+      <a href="https://github.com/vrindagupta-19">
         <img src="https://ui-avatars.com/api/?name=Vrinda+Gupta&background=10b981&color=fff&size=100" width="100px;" alt="Vrinda Gupta"/><br />
         <sub><b>Vrinda Gupta</b></sub>
       </a><br />
       <small>Head of Research & Development</small><br />
-      <a href="https://github.com/vrindagupta-gh"><code>@vrindagupta</code></a>
+      <a href="https://github.com/vrindagupta-19"><code>@vrindagupta</code></a>
     </td>
     <td align="center" width="25%">
-      <a href="https://github.com/ishmeetsingh-gh">
+      <a href="https://github.com/ishmeetsingh15">
         <img src="https://ui-avatars.com/api/?name=Ishmeet+Singh&background=070d18&color=fff&size=100" width="100px;" alt="Ishmeet Singh"/><br />
         <sub><b>Ishmeet Singh</b></sub>
       </a><br />
       <small>Healthcare Workflow & Strategy Lead</small><br />
-      <a href="https://github.com/ishmeetsingh-gh"><code>@ishmeetsingh</code></a>
+      <a href="https://github.com/Ishmeetsingh15"><code>@ishmeetsingh</code></a>
     </td>
     <td align="center" width="25%">
-      <a href="https://github.com/aakritisharma-gh">
+      <a href="https://github.com/aakritisharma5916-eng">
         <img src="https://ui-avatars.com/api/?name=Akriti+Sharma&background=f97316&color=fff&size=100" width="100px;" alt="Akriti Sharma"/><br />
         <sub><b>Akriti Sharma</b></sub>
       </a><br />
       <small>UI/UX Designer & Presentation Lead</small><br />
-      <a href="https://github.com/aakritisharma-gh"><code>@aakritisharma</code></a>
+      <a href="https://github.com/aakritisharma5916-eng"><code>@aakritisharma</code></a>
     </td>
   </tr>
 </table>
