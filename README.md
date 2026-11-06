@@ -109,7 +109,7 @@ The prototype includes pre-seeded verified facilities across Jammu district:
         <sub><b>Vrinda Gupta</b></sub>
       </a><br />
       <small>Head of Research & Development</small><br />
-      <a href="https://github.com/vrindagupta-19"><code>@vrindagupta</code></a>
+      <a href="https://github.com/vrindagupta-19"><code>@vrindagupta19</code></a>
     </td>
     <td align="center" width="25%">
       <a href="https://github.com/ishmeetsingh15">
@@ -117,7 +117,7 @@ The prototype includes pre-seeded verified facilities across Jammu district:
         <sub><b>Ishmeet Singh</b></sub>
       </a><br />
       <small>Healthcare Workflow & Strategy Lead</small><br />
-      <a href="https://github.com/ishmeetsingh15"><code>@ishmeetsingh</code></a>
+      <a href="https://github.com/ishmeetsingh15"><code>@ishmeetsingh15</code></a>
     </td>
     <td align="center" width="25%">
       <a href="https://github.com/aakritisharma5916-eng">
@@ -125,7 +125,7 @@ The prototype includes pre-seeded verified facilities across Jammu district:
         <sub><b>Akriti Sharma</b></sub>
       </a><br />
       <small>UI/UX Designer & Presentation Lead</small><br />
-      <a href="https://github.com/aakritisharma5916-eng"><code>@aakritisharma</code></a>
+      <a href="https://github.com/aakritisharma5916-eng"><code>@aakritisharma5916-eng</code></a>
     </td>
   </tr>
 </table>
