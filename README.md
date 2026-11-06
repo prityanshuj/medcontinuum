@@ -7,10 +7,11 @@
 # 🏥 MedContinuum (CareContinuum)
 ### Autonomous Patient Healthcare Navigation & OPD Queue Radar
 
-[![Ideathon 2026](https://img.shields.io/badge/IDEATHON-2026-059669?style=for-the-badge&logo=target&logoColor=white)](https://github.com/prityansjuj/medcontinuum)
-[![Track](https://img.shields.io/badge/TRACK-Smart%20Governance%20%26%20Public%20Healthcare-070d18?style=for-the-badge&logo=shield&logoColor=10b981)](https://github.com/prityansjuj/medcontinuum)
-[![Team](https://img.shields.io/badge/TEAM-FIX%20FELLAS-f97316?style=for-the-badge&logo=users&logoColor=white)](https://github.com/prityansjuj/medcontinuum)
-[![License](https://img.shields.io/badge/LICENSE-MIT-1b4332?style=for-the-badge)](LICENSE)
+<p align="center">
+  <img src="https://img.shields.io/badge/IDEATHON-2026-059669?style=for-the-badge&logo=target&logoColor=white" alt="Ideathon 2026" />
+  <img src="https://img.shields.io/badge/TRACK-Smart%20Governance%20%26%20Public%20Healthcare-070d18?style=for-the-badge&logo=shield&logoColor=10b981" alt="Track" />
+  <img src="https://img.shields.io/badge/TEAM-FIX%20FELLAS-f97316?style=for-the-badge&logo=users&logoColor=white" alt="Team" />
+</p>
 
 <p align="center">
   <b>Eliminating blind travel and crowded waiting rooms through live hospital queue telemetry, geospatial satellite discovery, and secure diagnostic storage.</b>
@@ -96,15 +97,15 @@ The prototype includes pre-seeded verified facilities across Jammu district:
   <tr>
     <td align="center" width="25%">
       <a href="https://github.com/prityanshuj">
-        <img src="https://github.com/prityansjuj.png" width="100px;" alt="Prityanshu Jasrotia"/><br />
+        <img src="https://ui-avatars.com/api/?name=Prityanshu+Jasrotia&background=0284c7&color=fff&size=100&bold=true" width="100px;" alt="Prityanshu Jasrotia"/><br />
         <sub><b>Prityanshu Jasrotia</b></sub>
       </a><br />
       <small>Lead Architecture & Full-Stack Systems</small><br />
-      <a href="https://github.com/prityanshuj"><code>@prityanshujasrotia</code></a>
+      <a href="https://github.com/prityanshuj"><code>@prityanshuj</code></a>
     </td>
     <td align="center" width="25%">
-      <a href="https://github.com/vrindagupta-19">
-        <img src="https://ui-avatars.com/api/?name=Vrinda+Gupta&background=10b981&color=fff&size=100" width="100px;" alt="Vrinda Gupta"/><br />
+      <a href="https://github.com/vrindagupta19">
+        <img src="https://ui-avatars.com/api/?name=Vrinda+Gupta&background=10b981&color=fff&size=100&bold=true" width="100px;" alt="Vrinda Gupta"/><br />
         <sub><b>Vrinda Gupta</b></sub>
       </a><br />
       <small>Head of Research & Development</small><br />
@@ -112,15 +113,15 @@ The prototype includes pre-seeded verified facilities across Jammu district:
     </td>
     <td align="center" width="25%">
       <a href="https://github.com/ishmeetsingh15">
-        <img src="https://ui-avatars.com/api/?name=Ishmeet+Singh&background=070d18&color=fff&size=100" width="100px;" alt="Ishmeet Singh"/><br />
+        <img src="https://ui-avatars.com/api/?name=Ishmeet+Singh&background=070d18&color=fff&size=100&bold=true" width="100px;" alt="Ishmeet Singh"/><br />
         <sub><b>Ishmeet Singh</b></sub>
       </a><br />
       <small>Healthcare Workflow & Strategy Lead</small><br />
-      <a href="https://github.com/Ishmeetsingh15"><code>@ishmeetsingh</code></a>
+      <a href="https://github.com/ishmeetsingh15"><code>@ishmeetsingh</code></a>
     </td>
     <td align="center" width="25%">
       <a href="https://github.com/aakritisharma5916-eng">
-        <img src="https://ui-avatars.com/api/?name=Akriti+Sharma&background=f97316&color=fff&size=100" width="100px;" alt="Akriti Sharma"/><br />
+        <img src="https://ui-avatars.com/api/?name=Akriti+Sharma&background=f97316&color=fff&size=100&bold=true" width="100px;" alt="Akriti Sharma"/><br />
         <sub><b>Akriti Sharma</b></sub>
       </a><br />
       <small>UI/UX Designer & Presentation Lead</small><br />
@@ -128,7 +129,6 @@ The prototype includes pre-seeded verified facilities across Jammu district:
     </td>
   </tr>
 </table>
-
 ---
 
 ## 🚦 Roadmap
